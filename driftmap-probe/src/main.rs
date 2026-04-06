@@ -50,8 +50,10 @@ fn evaluate_network_packet(ctx: TcContext) -> Result<i32, ()> {
     let src_port = u16::from_be(unsafe { (*tcp_hdr).source });
     let dst_port = u16::from_be(unsafe { (*tcp_hdr).dest });
 
-    if FILTERED_PORT_REGISTRY.get(&(src_port as u32)).is_none()
-        && FILTERED_PORT_REGISTRY.get(&(dst_port as u32)).is_none() {
+    let src_watched = unsafe { FILTERED_PORT_REGISTRY.get(&(src_port as u32)).is_some() };
+    let dst_watched = unsafe { FILTERED_PORT_REGISTRY.get(&(dst_port as u32)).is_some() };
+
+    if !src_watched && !dst_watched {
         return Ok(TC_ACT_OK);
     }
 
