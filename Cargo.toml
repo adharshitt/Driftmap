@@ -1,0 +1,17 @@
+[workspace]
+members = [
+    "driftmap-probe",
+    "driftmap-probe-common",
+    "driftmap-core",
+    "driftmap-tui",
+    "driftmap-plugin-sdk",
+    "driftmap-cli",
+]
+resolver = "2"
+
+[workspace.dependencies]
+tokio          = { version = "1", features = ["full"] }
+tracing        = "0.1"
+serde          = { version = "1", features = ["derive"] }
+serde_json     = "1"
+anyhow         = "1"
