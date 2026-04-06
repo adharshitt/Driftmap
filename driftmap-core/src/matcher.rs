@@ -14,6 +14,7 @@ pub struct PendingRequest {
     pub request: HttpRequest,
     pub response: HttpResponse,
     pub arrived_at: Instant,
+    pub captured_at: Instant,
 }
 
 #[derive(Debug, Clone)]

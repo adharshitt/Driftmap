@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use tokio::sync::mpsc;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH, Instant};
 use driftmap_probe_common::PacketEvent;
 use crate::http::{parse_http_message, HttpMessage};
 
@@ -12,6 +12,7 @@ pub struct StreamKey {
 
 pub struct StreamBuffer {
     pub data: Vec<u8>,
+    pub captured_at: std::time::Instant,
     pub last_seen_ms: u64,
 }
 
@@ -43,6 +44,7 @@ impl Reassembler {
 
         let buf = self.streams.entry(key.clone()).or_insert(StreamBuffer {
             data: Vec::with_capacity(4096),
+            captured_at: Instant::now(),
             last_seen_ms: now,
         });
 

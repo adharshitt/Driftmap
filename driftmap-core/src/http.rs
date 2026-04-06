@@ -1,4 +1,5 @@
 use httparse;
+use std::time::Instant;
 
 #[derive(Debug, Clone)]
 pub struct HttpRequest {
@@ -7,6 +8,7 @@ pub struct HttpRequest {
     pub path_template: String,
     pub headers: Vec<(String, String)>,
     pub body:    Vec<u8>,
+    pub captured_at: Instant,
 }
 
 #[derive(Debug, Clone)]
@@ -14,6 +16,7 @@ pub struct HttpResponse {
     pub status:  u16,
     pub headers: Vec<(String, String)>,
     pub body:    Vec<u8>,
+    pub captured_at: Instant,
 }
 
 #[derive(Debug, Clone)]
