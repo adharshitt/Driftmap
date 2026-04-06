@@ -27,15 +27,13 @@ Unlike traditional tools that diff static configurations or logs, DriftMap uses 
 
 DriftMap provides pre-compiled binaries for Linux (x86_64 and aarch64).
 
-### 1. Direct Binary Download (Recommended)
-Download the latest release for your architecture from the [GitHub Releases page](https://github.com/adharshitt/Driftmap/releases).
+### 1. One-Line Installer (Recommended)
+The easiest way to install the latest pre-compiled binary is using our installation script:
 
 ```bash
-# For x86_64 Linux
-curl -LO https://github.com/adharshitt/Driftmap/releases/latest/download/driftmap-x86_64-unknown-linux-gnu
-chmod +x driftmap-x86_64-unknown-linux-gnu
-sudo mv driftmap-x86_64-unknown-linux-gnu /usr/local/bin/driftmap
+curl -sSL https://raw.githubusercontent.com/adharshitt/Driftmap/main/install.sh | bash
 ```
+*This script automatically detects your architecture (x86_64 or aarch64), downloads the latest binary from GitHub Releases, and installs it to `/usr/local/bin/driftmap`.*
 
 ### 2. Install via Cargo
 ```bash
