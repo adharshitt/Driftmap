@@ -46,7 +46,7 @@ impl Matcher {
         }
     }
 
-    pub fn ingest(&mut self, target: Target, req: HttpRequest, res: HttpResponse) {
+    pub fn process_incoming_payload(&mut self, target: Target, req: HttpRequest, res: HttpResponse) {
         let key = format!("{} {}", req.method, req.path_template);
 
         let (my_pending, their_pending) = match target {
@@ -102,7 +102,7 @@ impl Matcher {
             });
     }
 
-    pub fn gc(&mut self) {
+    pub fn collect_stale_connections(&mut self) {
         let cutoff = self.window;
         for queue in self.pending_a.values_mut().chain(self.pending_b.values_mut()) {
             while queue.front().map(|p| p.arrived_at.elapsed() > cutoff).unwrap_or(false) {

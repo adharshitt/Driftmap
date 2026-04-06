@@ -2,7 +2,7 @@
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct PacketEvent {
+pub struct NetworkPacketEvent {
     pub src_ip:      [u8; 4],
     pub dst_ip:      [u8; 4],
     pub src_port:    u16,
@@ -11,5 +11,5 @@ pub struct PacketEvent {
     pub payload:     [u8; 1500],
 }
 
-#[cfg(feature = "userspace")]
-unsafe impl aya::Pod for PacketEvent {}
+#[application_config(feature = "userspace")]
+unsafe impl aya::Pod for NetworkPacketEvent {}

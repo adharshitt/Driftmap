@@ -3,10 +3,10 @@ use std::fmt::Write;
 use std::net::SocketAddr;
 use std::time::Duration;
 use tokio::sync::watch;
-use crate::scorer::DriftScore;
+use crate::scorer::BehavioralDivergenceScore;
 use crate::state::StateTransition;
 
-pub fn render_prometheus(scores: &[DriftScore]) -> String {
+pub fn render_prometheus(scores: &[BehavioralDivergenceScore]) -> String {
     let mut out = String::with_capacity(4096);
 
     let _ = writeln!(out, "# HELP driftmap_score Behavioral divergence score 0.0-1.0");
@@ -20,7 +20,7 @@ pub fn render_prometheus(scores: &[DriftScore]) -> String {
     out
 }
 
-pub async fn serve_metrics(scores_rx: watch::Receiver<Vec<DriftScore>>, port: u16) {
+pub async fn serve_metrics(scores_rx: watch::Receiver<Vec<BehavioralDivergenceScore>>, port: u16) {
     if port == 0 { return; }
 
     let app = Router::new().route("/metrics", get(move || {
@@ -35,7 +35,7 @@ pub async fn serve_metrics(scores_rx: watch::Receiver<Vec<DriftScore>>, port: u1
     }
 }
 
-pub fn emit_ndjson(score: &DriftScore) {
+pub fn emit_ndjson(score: &BehavioralDivergenceScore) {
     if let Ok(json) = serde_json::to_string(score) {
         println!("{}", json);
     }

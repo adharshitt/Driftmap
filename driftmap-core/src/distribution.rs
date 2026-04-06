@@ -7,13 +7,13 @@ struct Centroid {
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-pub struct TDigest {
+pub struct StreamingQuantileEstimator {
     centroids: Vec<Centroid>,
     count:     u64,
     max_size:  usize,
 }
 
-impl TDigest {
+impl StreamingQuantileEstimator {
     pub fn new() -> Self {
         Self { centroids: Vec::new(), count: 0, max_size: 200 }
     }
@@ -66,15 +66,15 @@ impl TDigest {
 }
 
 pub struct FieldDistribution {
-    pub digest_a: TDigest,
-    pub digest_b: TDigest,
+    pub digest_a: StreamingQuantileEstimator,
+    pub digest_b: StreamingQuantileEstimator,
 }
 
 impl FieldDistribution {
     pub fn new() -> Self {
         Self {
-            digest_a: TDigest::new(),
-            digest_b: TDigest::new(),
+            digest_a: StreamingQuantileEstimator::new(),
+            digest_b: StreamingQuantileEstimator::new(),
         }
     }
 

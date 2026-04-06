@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use crate::matcher::MatchedPair;
 
 #[derive(Debug, Clone)]
-pub struct RawDiff {
+pub struct RawProtocolDivergence {
     pub endpoint:        String,
     pub status_match:    bool,
     pub status_a:        u16,
@@ -16,7 +16,7 @@ pub struct RawDiff {
     pub latency_delta_us: i64,
 }
 
-pub fn compute_raw_diff(pair: &MatchedPair) -> RawDiff {
+pub fn calculate_protocol_divergence(pair: &MatchedPair) -> RawProtocolDivergence {
     let status_match = pair.res_a.status == pair.res_b.status;
 
     let hdrs_a: HashMap<String, String> = pair.res_a.headers.iter().cloned().collect();
@@ -54,7 +54,7 @@ pub fn compute_raw_diff(pair: &MatchedPair) -> RawDiff {
     let lat_a = pair.res_a.captured_at.duration_since(pair.req_a.captured_at).as_micros() as i64;
     let lat_b = pair.res_b.captured_at.duration_since(pair.req_b.captured_at).as_micros() as i64;
 
-    RawDiff {
+    RawProtocolDivergence {
         endpoint:        pair.endpoint.clone(),
         status_match,
         status_a:        pair.res_a.status,

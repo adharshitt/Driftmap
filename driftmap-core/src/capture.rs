@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use tokio::sync::mpsc;
 use std::time::{SystemTime, UNIX_EPOCH, Instant};
-use driftmap_probe_common::PacketEvent;
+use driftmap_probe_common::NetworkPacketEvent;
 use crate::http::{parse_http_message, HttpMessage};
 
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
@@ -12,14 +12,14 @@ pub struct StreamKey {
     pub dst_port: u16,
 }
 
-pub struct StreamBuffer {
+pub struct TrafficCaptureBuffer {
     pub data: Vec<u8>,
     pub captured_at: std::time::Instant,
     pub last_seen_ms: u64,
 }
 
 pub struct Reassembler {
-    pub streams: HashMap<StreamKey, StreamBuffer>,
+    pub streams: HashMap<StreamKey, TrafficCaptureBuffer>,
     pub tx: mpsc::Sender<(StreamKey, HttpMessage)>,
     pub timeout_ms: u64,
 }
@@ -33,7 +33,7 @@ impl Reassembler {
         }
     }
 
-    pub fn ingest(&mut self, event: &PacketEvent) {
+    pub fn process_incoming_payload(&mut self, event: &NetworkPacketEvent) {
         let key = StreamKey {
             src_ip: event.src_ip,
             dst_ip: event.dst_ip,
@@ -46,7 +46,7 @@ impl Reassembler {
             .unwrap()
             .as_millis() as u64;
 
-        let buf = self.streams.entry(key.clone()).or_insert(StreamBuffer {
+        let buf = self.streams.entry(key.clone()).or_insert(TrafficCaptureBuffer {
             data: Vec::with_capacity(4096),
             captured_at: Instant::now(),
             last_seen_ms: now,
@@ -67,7 +67,7 @@ impl Reassembler {
         }
     }
 
-    pub fn gc(&mut self) {
+    pub fn collect_stale_connections(&mut self) {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()

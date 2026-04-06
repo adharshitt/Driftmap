@@ -9,7 +9,7 @@ use aya_ebpf::{
 };
 use aya_log_ebpf::info;
 use core::mem;
-use driftmap_probe_common::PacketEvent;
+use driftmap_probe_common::NetworkPacketEvent;
 use network_types::{
     eth::{EtherType, EthHdr},
     ip::{IpProto, Ipv4Hdr},
@@ -17,20 +17,20 @@ use network_types::{
 };
 
 #[map]
-static EVENTS: RingBuf = RingBuf::with_byte_size(4 * 1024 * 1024, 0);
+static PACKET_EVENT_RING_BUFFER: RingBuf = RingBuf::with_byte_size(4 * 1024 * 1024, 0);
 
 #[map]
-static WATCHED_PORTS: HashMap<u32, u8> = HashMap::with_max_entries(1024, 0);
+static FILTERED_PORT_REGISTRY: HashMap<u32, u8> = HashMap::with_max_entries(1024, 0);
 
 #[classifier]
-pub fn driftmap_tc(ctx: TcContext) -> i32 {
-    match try_driftmap_tc(ctx) {
+pub fn intercept_traffic_control_hook(ctx: TcContext) -> i32 {
+    match evaluate_network_packet(ctx) {
         Ok(ret) => ret,
         Err(_) => TC_ACT_OK,
     }
 }
 
-fn try_driftmap_tc(ctx: TcContext) -> Result<i32, ()> {
+fn evaluate_network_packet(ctx: TcContext) -> Result<i32, ()> {
     let eth_hdr: *const EthHdr = ctx.load(0).map_err(|_| ())?;
     if unsafe { (*eth_hdr).ether_type } != EtherType::Ipv4 {
         return Ok(TC_ACT_OK);
@@ -50,8 +50,8 @@ fn try_driftmap_tc(ctx: TcContext) -> Result<i32, ()> {
     let src_port = u16::from_be(unsafe { (*tcp_hdr).source });
     let dst_port = u16::from_be(unsafe { (*tcp_hdr).dest });
 
-    if WATCHED_PORTS.get(&(src_port as u32)).is_none()
-        && WATCHED_PORTS.get(&(dst_port as u32)).is_none() {
+    if FILTERED_PORT_REGISTRY.get(&(src_port as u32)).is_none()
+        && FILTERED_PORT_REGISTRY.get(&(dst_port as u32)).is_none() {
         return Ok(TC_ACT_OK);
     }
 
@@ -62,7 +62,7 @@ fn try_driftmap_tc(ctx: TcContext) -> Result<i32, ()> {
         return Ok(TC_ACT_OK);
     }
 
-    if let Some(mut event) = EVENTS.reserve::<PacketEvent>(0) {
+    if let Some(mut event) = PACKET_EVENT_RING_BUFFER.reserve::<NetworkPacketEvent>(0) {
         let ev = event.as_mut_ptr();
         unsafe {
             (*ev).src_ip = src_ip;

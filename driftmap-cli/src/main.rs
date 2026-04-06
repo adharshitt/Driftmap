@@ -1,8 +1,8 @@
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 use anyhow::Result;
-use driftmap_core::pipeline::run_pipeline;
-use driftmap_tui::run_tui;
+use driftmap_core::pipeline::initialize_observability_pipeline;
+use driftmap_tui::launch_terminal_dashboard;
 
 mod config;
 mod proxy;
@@ -50,15 +50,15 @@ async fn main() -> Result<()> {
 
     match cli.command {
         Command::Watch { config, target_a, target_b } => {
-            let mut cfg = config::load_config(config)?;
-            if let Some(a) = target_a { cfg.watch.target_a = a; }
-            if let Some(b) = target_b { cfg.watch.target_b = b; }
+            let mut application_config = config::load_config(config)?;
+            if let Some(a) = target_a { application_config.watch.target_a = a; }
+            if let Some(b) = target_b { application_config.watch.target_b = b; }
 
-            let port_a: u16 = cfg.watch.target_a.split(':').last().unwrap().parse()?;
-            let port_b: u16 = cfg.watch.target_b.split(':').last().unwrap().parse()?;
+            let port_a: u16 = application_config.watch.target_a.split(':').last().unwrap().parse()?;
+            let port_b: u16 = application_config.watch.target_b.split(':').last().unwrap().parse()?;
 
             // Start pipeline and get the score receiver
-            let score_rx = run_pipeline(cfg.watch.interface, port_a, port_b).await?;
+            let score_rx = initialize_observability_pipeline(application_config.watch.interface, port_a, port_b).await?;
             
             
             // Start Config Hot-Reload Task
@@ -80,7 +80,7 @@ async fn main() -> Result<()> {
             });
 
             // Hand over main thread to TUI
-            run_tui(score_rx).await?;
+            launch_terminal_dashboard(score_rx).await?;
         }
     Proxy {
         #[arg(long, default_value = "0.0.0.0:8080")]
@@ -91,7 +91,7 @@ async fn main() -> Result<()> {
         target_b: String,
     },
         Command::Proxy { listen, target_a, target_b } => {
-            let _ = proxy::run_proxy(&listen, &target_a, &target_b).await;
+            let _ = proxy::initialize_mirror_proxy_service(&listen, &target_a, &target_b).await;
         }
         Command::Diff { .. } => {
             

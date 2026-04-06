@@ -33,7 +33,7 @@ impl FieldStats {
 pub type SchemaNode = HashMap<String, FieldStats>;
 
 #[derive(Debug, Clone, serde::Serialize)]
-pub struct SchemaDiff {
+pub struct StructuralSchemaDivergence {
     pub endpoint: String,
     pub fields_only_a: Vec<String>,
     pub fields_only_b: Vec<String>,
@@ -83,7 +83,7 @@ impl SchemaInferrer {
         }
     }
 
-    pub fn diff(&self, endpoint: &str) -> Option<SchemaDiff> {
+    pub fn diff(&self, endpoint: &str) -> Option<StructuralSchemaDivergence> {
         let schema_a = self.schemas.get(&(endpoint.to_string(), Target::A))?;
         let schema_b = self.schemas.get(&(endpoint.to_string(), Target::B))?;
 
@@ -125,7 +125,7 @@ impl SchemaInferrer {
             return None;
         }
 
-        Some(SchemaDiff {
+        Some(StructuralSchemaDivergence {
             endpoint: endpoint.to_string(),
             fields_only_a,
             fields_only_b,

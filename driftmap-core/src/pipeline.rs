@@ -10,23 +10,23 @@ use tracing::{info, warn};
 
 use crate::capture::Reassembler;
 use crate::matcher::{Matcher, Target};
-use crate::scorer::{Scorer, DriftScore};
+use crate::scorer::{Scorer, BehavioralDivergenceScore};
 
-pub async fn run_pipeline(
+pub async fn initialize_observability_pipeline(
     interface: String,
     target_a_port: u16,
     target_b_port: u16,
-) -> anyhow::Result<watch::Receiver<Vec<DriftScore>>> {
+) -> anyhow::Result<watch::Receiver<Vec<BehavioralDivergenceScore>>> {
     let mut bpf = Bpf::load(include_bytes!("../../target/bpfel-unknown-none/debug/driftmap-probe"))?;
     if let Err(e) = BpfLogger::init(&mut bpf) {
         warn!("failed to initialize eBPF logger: {}", e);
     }
 
-    let mut watched_ports: BpfHashMap<_, u32, u8> = BpfHashMap::try_from(bpf.map_mut("WATCHED_PORTS").unwrap())?;
+    let mut watched_ports: BpfHashMap<_, u32, u8> = BpfHashMap::try_from(bpf.map_mut("FILTERED_PORT_REGISTRY").unwrap())?;
     watched_ports.insert(target_a_port as u32, 1, 0)?;
     watched_ports.insert(target_b_port as u32, 1, 0)?;
 
-    let program: &mut Tc = bpf.program_mut("driftmap_tc").unwrap().try_into()?;
+    let program: &mut Tc = bpf.program_mut("intercept_traffic_control_hook").unwrap().try_into()?;
     program.load()?;
     program.attach(&interface, TcAttachType::Ingress)?;
     program.attach(&interface, TcAttachType::Egress)?;
@@ -41,7 +41,7 @@ pub async fn run_pipeline(
     let mut matcher = Matcher::new(pair_tx);
     let scorer = Arc::new(Mutex::new(Scorer::new()));
 
-    let ring_buf = RingBuf::try_from(bpf.map("EVENTS").unwrap())?;
+    let ring_buf = RingBuf::try_from(bpf.map("PACKET_EVENT_RING_BUFFER").unwrap())?;
     let mut poll = tokio::io::unix::AsyncFd::new(ring_buf)?;
 
     let scorer_clone = scorer.clone();
@@ -51,10 +51,10 @@ pub async fn run_pipeline(
             let mut guard = poll.readable_mut().await.unwrap();
             let mut rb = guard.get_inner_mut();
             while let Some(event) = rb.next() {
-                let packet_event: &driftmap_probe_common::PacketEvent = unsafe {
-                    &*(event.as_ptr() as *const driftmap_probe_common::PacketEvent)
+                let packet_event: &driftmap_probe_common::NetworkPacketEvent = unsafe {
+                    &*(event.as_ptr() as *const driftmap_probe_common::NetworkPacketEvent)
                 };
-                reassembler.ingest(packet_event);
+                reassembler.process_incoming_payload(packet_event);
             }
             guard.clear_ready();
         }

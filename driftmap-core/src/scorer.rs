@@ -1,8 +1,8 @@
 use std::collections::{HashMap, VecDeque};
-use crate::diff::RawDiff;
+use crate::diff::RawProtocolDivergence;
 
 #[derive(Debug, Clone, serde::Serialize)]
-pub struct DriftScore {
+pub struct BehavioralDivergenceScore {
     pub endpoint:      String,
     pub score:         f32,
     pub status_score:  f32,
@@ -14,7 +14,7 @@ pub struct DriftScore {
 
 pub struct Scorer {
     pub normalizer: crate::semantic::SemanticNormalizer,
-    recent_diffs: HashMap<String, VecDeque<RawDiff>>,
+    recent_diffs: HashMap<String, VecDeque<RawProtocolDivergence>>,
     window_size:   usize,
 }
 
@@ -28,7 +28,7 @@ impl Scorer {
         }
     }
 
-    pub fn ingest_diff(&mut self, diff: RawDiff) {
+    pub fn ingest_diff(&mut self, diff: RawProtocolDivergence) {
         let diffs = self.recent_diffs.entry(diff.endpoint.clone()).or_insert_with(|| VecDeque::with_capacity(1000));
         diffs.push_back(diff);
         if diffs.len() > self.window_size {
@@ -36,7 +36,7 @@ impl Scorer {
         }
     }
 
-    pub fn compute_score(&self, endpoint: &str) -> Option<DriftScore> {
+    pub fn compute_score(&self, endpoint: &str) -> Option<BehavioralDivergenceScore> {
         let diffs = self.recent_diffs.get(endpoint)?;
         if diffs.is_empty() { return None; }
 
@@ -55,7 +55,7 @@ impl Scorer {
 
         let score = (status_score * 0.40 + schema_score * 0.30 + latency_score * 0.20 + header_score * 0.10).clamp(0.0, 1.0);
 
-        Some(DriftScore {
+        Some(BehavioralDivergenceScore {
             endpoint: endpoint.to_string(),
             score,
             status_score,
@@ -66,7 +66,7 @@ impl Scorer {
         })
     }
 
-    pub fn all_scores(&self) -> Vec<DriftScore> {
+    pub fn all_scores(&self) -> Vec<BehavioralDivergenceScore> {
         self.recent_diffs.keys().filter_map(|e| self.compute_score(e)).collect()
     }
 }

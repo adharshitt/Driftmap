@@ -11,7 +11,7 @@ mod app;
 mod ui;
 mod events;
 
-pub async fn run_tui(score_rx: watch::Receiver<Vec<driftmap_core::scorer::DriftScore>>) -> anyhow::Result<()> {
+pub async fn launch_terminal_dashboard(score_rx: watch::Receiver<Vec<driftmap_core::scorer::BehavioralDivergenceScore>>) -> anyhow::Result<()> {
     enable_raw_mode()?;
     let mut stdout = stdout();
     execute!(stdout, EnterAlternateScreen)?;

@@ -2,7 +2,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use anyhow::Result;
 
-pub async fn run_proxy(listen_addr: &str, target_a: &str, target_b: &str) -> Result<()> {
+pub async fn initialize_mirror_proxy_service(listen_addr: &str, target_a: &str, target_b: &str) -> Result<()> {
     let listener = TcpListener::bind(listen_addr).await?;
     tracing::info!("Mirror Proxy listening on {}... forwarding to {} and {}", listen_addr, target_a, target_b);
 

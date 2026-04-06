@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
-use crate::scorer::DriftScore;
+use crate::scorer::BehavioralDivergenceScore;
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub enum DriftState {
@@ -42,7 +42,7 @@ impl StateMachine {
         }
     }
 
-    pub fn update(&mut self, endpoint: &str, score: &DriftScore) -> Option<StateTransition> {
+    pub fn update(&mut self, endpoint: &str, score: &BehavioralDivergenceScore) -> Option<StateTransition> {
         if score.sample_count < self.min_samples {
             self.records.entry(endpoint.to_string()).or_insert_with(|| StateRecord {
                 state: DriftState::Unknown,
