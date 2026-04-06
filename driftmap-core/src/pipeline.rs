@@ -1,9 +1,9 @@
 use aya::{
     maps::{HashMap as BpfHashMap, RingBuf},
     programs::{Tc, TcAttachType},
-    Bpf,
+    Ebpf,
 };
-use aya_log::BpfLogger;
+use aya_log::EbpfLogger;
 use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc, watch};
 use tracing::{info, warn};
@@ -17,8 +17,8 @@ pub async fn initialize_observability_pipeline(
     target_a_port: u16,
     target_b_port: u16,
 ) -> anyhow::Result<watch::Receiver<Vec<BehavioralDivergenceScore>>> {
-    let mut bpf = Bpf::load(include_bytes!("../../target/bpfel-unknown-none/debug/driftmap-probe"))?;
-    if let Err(e) = BpfLogger::init(&mut bpf) {
+    let mut bpf = Ebpf::load(include_bytes!("../../target/bpfel-unknown-none/debug/driftmap-probe"))?;
+    if let Err(e) = EbpfLogger::init(&mut bpf) {
         warn!("failed to initialize eBPF logger: {}", e);
     }
 
