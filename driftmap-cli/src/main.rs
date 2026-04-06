@@ -2,6 +2,7 @@ use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 use anyhow::Result;
 use driftmap_core::pipeline::run_pipeline;
+use driftmap_tui::run_tui;
 
 mod config;
 
@@ -29,7 +30,10 @@ enum Command {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    tracing_subscriber::fmt::init();
+    // Only init tracing if we aren't running the TUI, 
+    // but for now we'll write to a file or disable it to not break the terminal.
+    // tracing_subscriber::fmt::init(); 
+
     let cli = Cli::parse();
 
     match cli.command {
@@ -41,10 +45,14 @@ async fn main() -> Result<()> {
             let port_a: u16 = cfg.watch.target_a.split(':').last().unwrap().parse()?;
             let port_b: u16 = cfg.watch.target_b.split(':').last().unwrap().parse()?;
 
-            run_pipeline(cfg.watch.interface, port_a, port_b).await?;
+            // Start pipeline and get the score receiver
+            let score_rx = run_pipeline(cfg.watch.interface, port_a, port_b).await?;
+            
+            // Hand over main thread to TUI
+            run_tui(score_rx).await?;
         }
         Command::Diff { .. } => {
-            tracing::warn!("Diff mode is not yet implemented (Phase 3 milestone)");
+            println!("Diff mode is not yet implemented (Phase 3 milestone)");
         }
     }
 

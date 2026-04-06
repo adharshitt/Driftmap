@@ -5,19 +5,18 @@ use aya::{
 };
 use aya_log::BpfLogger;
 use std::sync::{Arc, Mutex};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, watch};
 use tracing::{info, warn};
 
 use crate::capture::Reassembler;
 use crate::matcher::{Matcher, Target};
-use crate::scorer::Scorer;
+use crate::scorer::{Scorer, DriftScore};
 
 pub async fn run_pipeline(
     interface: String,
     target_a_port: u16,
     target_b_port: u16,
-) -> anyhow::Result<()> {
-    // 1. Load eBPF
+) -> anyhow::Result<watch::Receiver<Vec<DriftScore>>> {
     let mut bpf = Bpf::load(include_bytes!("../../target/bpfel-unknown-none/debug/driftmap-probe"))?;
     if let Err(e) = BpfLogger::init(&mut bpf) {
         warn!("failed to initialize eBPF logger: {}", e);
@@ -32,23 +31,21 @@ pub async fn run_pipeline(
     program.attach(&interface, TcAttachType::Ingress)?;
     program.attach(&interface, TcAttachType::Egress)?;
 
-    info!("eBPF probe attached to {} (watching ports {}, {})\r", interface, target_a_port, target_b_port);
+    info!("eBPF probe attached to {} (watching ports {}, {})", interface, target_a_port, target_b_port);
 
-    // 2. Setup Pipeline Channels
     let (match_tx, mut match_rx) = mpsc::channel(1024);
     let (pair_tx, mut pair_rx) = mpsc::channel(1024);
+    let (score_tx, score_rx) = watch::channel(Vec::new());
     
     let mut reassembler = Reassembler::new(match_tx);
     let mut matcher = Matcher::new(pair_tx);
     let scorer = Arc::new(Mutex::new(Scorer::new()));
 
-    // 3. Ring Buffer Reader Task
     let ring_buf = RingBuf::try_from(bpf.map("EVENTS").unwrap())?;
     let mut poll = tokio::io::unix::AsyncFd::new(ring_buf)?;
 
     let scorer_clone = scorer.clone();
     
-    // Main Pipeline Loop
     tokio::spawn(async move {
         loop {
             let mut guard = poll.readable_mut().await.unwrap();
@@ -63,49 +60,20 @@ pub async fn run_pipeline(
         }
     });
 
-    // Matcher Task
     tokio::spawn(async move {
         while let Some((key, msg)) = match_rx.recv().await {
-            let target = if key.dst_port == target_a_port || key.src_port == target_a_port {
-                Target::A
-            } else {
-                Target::B
-            };
-            
-            match msg {
-                crate::http::HttpMessage::Request(req) => {
-                    // Logic to correlate req/res pairs would go here in a full impl
-                    // For MVP, we pass them to matcher which assumes one stream per connection
-                }
-                crate::http::HttpMessage::Response(res) => {
-                    // Placeholder: In a real impl, we'd need the req here too.
-                    // For MVP simplicity, let's assume we have them.
-                }
-            }
+            // Simplified MVP matching logic
         }
     });
 
-    // Plaintext Reporter Task
-    let reporter_scorer = scorer.clone();
     tokio::spawn(async move {
-        let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
+        let mut interval = tokio::time::interval(std::time::Duration::from_millis(500));
         loop {
             interval.tick().await;
-            let scores = reporter_scorer.lock().unwrap().all_scores();
-            if scores.is_empty() { continue; }
-            
-            println!("\n{:<30} {:<10} {:<12} {:<10}", "ENDPOINT", "REQUESTS", "DIVERGENCE", "STATUS");
-            println!("{}", "-".repeat(65));
-            for s in scores {
-                println!("{:<30} {:<10} {:<12.2}% {:<10}", 
-                    s.endpoint, s.sample_count, s.score * 100.0, 
-                    if s.score < 0.05 { "✓" } else { "⚠" }
-                );
-            }
+            let scores = scorer_clone.lock().unwrap().all_scores();
+            let _ = score_tx.send(scores);
         }
     });
 
-    tokio::signal::ctrl_c().await?;
-    info!("Shutting down...");
-    Ok(())
+    Ok(score_rx)
 }
