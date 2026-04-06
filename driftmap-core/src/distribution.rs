@@ -46,10 +46,11 @@ impl StreamingQuantileEstimator {
         self.centroids.sort_by(|a, b| a.mean.partial_cmp(&b.mean).unwrap());
 
         for c in self.centroids.drain(..) {
+            let merged_len = merged.len();
             if let Some(last) = merged.last_mut() {
                 let combined_count = last.count + c.count;
                 // t-digest scaling function for bounded size
-                let k = (merged.len() as f64 / self.max_size as f64);
+                let k = (merged_len as f64 / self.max_size as f64);
                 let limit = 4.0 * total * k * (1.0 - k);
                 
                 if combined_count as f64 <= limit {

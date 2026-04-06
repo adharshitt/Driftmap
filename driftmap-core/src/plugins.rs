@@ -56,11 +56,7 @@ impl PluginHost {
         let alloc = plugin.instance
             .get_typed_func::<u32, u32>(&mut plugin.store, "alloc").ok()?;
 
-        let score_fn = plugin.instance
-            .get_typed_func::<(
-                u32, u32, u32, u32, u32, u32, u32, u32, u32,
-                u32, u32, u32, u32, u32, u32, u32, u32, u32,
-            ), f32>(&mut plugin.store, "score_pair").ok()?;
+        let score_fn = plugin.instance.get_func(&mut plugin.store, "score_pair")?;
 
         let memory = plugin.instance.get_memory(&mut plugin.store, "memory")?;
 
@@ -72,14 +68,19 @@ impl PluginHost {
         let body_b_ptr = alloc.call(&mut plugin.store, pair.res_b.body.len() as u32).ok()?;
         memory.write(&mut plugin.store, body_b_ptr as usize, &pair.res_b.body).ok()?;
 
-        // Replenish fuel before execution
         plugin.store.set_fuel(100_000).unwrap_or(());
-        // Execute (passing 0 for omitted fields for brevity in this MVP)
-        score_fn.call(&mut plugin.store, (
-            0, 0, 0, 0, body_a_ptr, pair.res_a.body.len() as u32,
-            pair.res_a.status as u32, body_a_ptr, pair.res_a.body.len() as u32,
-            0, 0, 0, 0, body_b_ptr, pair.res_b.body.len() as u32,
-            pair.res_b.status as u32, body_b_ptr, pair.res_b.body.len() as u32,
-        )).ok()
+
+        let mut results = [wasmtime::Val::F32(0)];
+        let params = [
+            wasmtime::Val::I32(0), wasmtime::Val::I32(0), wasmtime::Val::I32(0), wasmtime::Val::I32(0),
+            wasmtime::Val::I32(body_a_ptr as i32), wasmtime::Val::I32(pair.res_a.body.len() as i32),
+            wasmtime::Val::I32(pair.res_a.status as i32), wasmtime::Val::I32(body_a_ptr as i32), wasmtime::Val::I32(pair.res_a.body.len() as i32),
+            wasmtime::Val::I32(0), wasmtime::Val::I32(0), wasmtime::Val::I32(0), wasmtime::Val::I32(0),
+            wasmtime::Val::I32(body_b_ptr as i32), wasmtime::Val::I32(pair.res_b.body.len() as i32),
+            wasmtime::Val::I32(pair.res_b.status as i32), wasmtime::Val::I32(body_b_ptr as i32), wasmtime::Val::I32(pair.res_b.body.len() as i32),
+        ];
+        
+        score_fn.call(&mut plugin.store, &params, &mut results).ok()?;
+        Some(results[0].unwrap_f32())
     }
 }
