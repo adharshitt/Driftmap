@@ -3,6 +3,8 @@
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct PacketEvent {
+    pub src_ip:      [u8; 4],
+    pub dst_ip:      [u8; 4],
     pub src_port:    u16,
     pub dst_port:    u16,
     pub payload_len: u16,

@@ -6,6 +6,8 @@ use crate::http::{parse_http_message, HttpMessage};
 
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
 pub struct StreamKey {
+    pub src_ip:      [u8; 4],
+    pub dst_ip:      [u8; 4],
     pub src_port: u16,
     pub dst_port: u16,
 }
@@ -33,6 +35,8 @@ impl Reassembler {
 
     pub fn ingest(&mut self, event: &PacketEvent) {
         let key = StreamKey {
+            src_ip: event.src_ip,
+            dst_ip: event.dst_ip,
             src_port: event.src_port,
             dst_port: event.dst_port,
         };

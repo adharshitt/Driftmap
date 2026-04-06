@@ -1,6 +1,7 @@
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 use anyhow::Result;
+use driftmap_core::pipeline::run_pipeline;
 
 mod config;
 
@@ -13,21 +14,14 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Watch two live services and surface behavioral drift
     Watch {
-        /// Path to the driftmap.toml configuration file
         #[arg(short, long, default_value = "driftmap.toml")]
         config: PathBuf,
-
-        /// Override target A address
         #[arg(long)]
         target_a: Option<String>,
-
-        /// Override target B address
         #[arg(long)]
         target_b: Option<String>,
     },
-    /// Show recent diverging response pairs for an endpoint (Phase 3)
     Diff {
         endpoint: String,
     },
@@ -39,10 +33,15 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Command::Watch { config, .. } => {
-            tracing::info!("Loading configuration from {:?}", config);
-            let _cfg = config::load_config(config)?;
-            tracing::info!("DriftMap watch mode starting (Phase 0 logic placeholder)");
+        Command::Watch { config, target_a, target_b } => {
+            let mut cfg = config::load_config(config)?;
+            if let Some(a) = target_a { cfg.watch.target_a = a; }
+            if let Some(b) = target_b { cfg.watch.target_b = b; }
+
+            let port_a: u16 = cfg.watch.target_a.split(':').last().unwrap().parse()?;
+            let port_b: u16 = cfg.watch.target_b.split(':').last().unwrap().parse()?;
+
+            run_pipeline(cfg.watch.interface, port_a, port_b).await?;
         }
         Command::Diff { .. } => {
             tracing::warn!("Diff mode is not yet implemented (Phase 3 milestone)");
