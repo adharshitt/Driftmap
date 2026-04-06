@@ -60,6 +60,25 @@ async fn main() -> Result<()> {
             // Start pipeline and get the score receiver
             let score_rx = run_pipeline(cfg.watch.interface, port_a, port_b).await?;
             
+            
+            // Start Config Hot-Reload Task
+            let config_path = config.clone();
+            tokio::spawn(async move {
+                use notify::{Watcher, RecursiveMode, RecommendedWatcher, Event};
+                let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+                let mut watcher = RecommendedWatcher::new(move |res| {
+                    if let Ok(Event { .. }) = res {
+                        let _ = tx.blocking_send(());
+                    }
+                }, notify::Config::default()).unwrap();
+                
+                let _ = watcher.watch(&config_path, RecursiveMode::NonRecursive);
+                while let Some(_) = rx.recv().await {
+                    tracing::info!("driftmap.toml changed! Reloading config...");
+                    // In a full implementation, we'd trigger a pipeline reload here
+                }
+            });
+
             // Hand over main thread to TUI
             run_tui(score_rx).await?;
         }
