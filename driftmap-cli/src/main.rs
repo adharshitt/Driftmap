@@ -5,6 +5,7 @@ use driftmap_core::pipeline::run_pipeline;
 use driftmap_tui::run_tui;
 
 mod config;
+mod proxy;
 
 #[derive(Parser)]
 #[command(name = "driftmap", about = "Runtime semantic diff for live systems", version)]
@@ -22,6 +23,14 @@ enum Command {
         target_a: Option<String>,
         #[arg(long)]
         target_b: Option<String>,
+    },
+    Proxy {
+        #[arg(long, default_value = "0.0.0.0:8080")]
+        listen: String,
+        #[arg(long)]
+        target_a: String,
+        #[arg(long)]
+        target_b: String,
     },
     Diff {
         endpoint: String,
@@ -50,6 +59,17 @@ async fn main() -> Result<()> {
             
             // Hand over main thread to TUI
             run_tui(score_rx).await?;
+        }
+    Proxy {
+        #[arg(long, default_value = "0.0.0.0:8080")]
+        listen: String,
+        #[arg(long)]
+        target_a: String,
+        #[arg(long)]
+        target_b: String,
+    },
+        Command::Proxy { listen, target_a, target_b } => {
+            let _ = proxy::run_proxy(&listen, &target_a, &target_b).await;
         }
         Command::Diff { .. } => {
             println!("Diff mode is not yet implemented (Phase 3 milestone)");
