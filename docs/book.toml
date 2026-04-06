@@ -1,0 +1,10 @@
+[book]
+authors = [\"Adharshitt\"]
+language = \"en\"
+multilingual = false
+src = \"src\"
+title = \"DriftMap Documentation\"
+
+[output.html]
+git-repository-url = \"https://github.com/adharshitt/Driftmap\"
+edit-url-template = \"https://github.com/adharshitt/Driftmap/edit/main/docs/src/{path}\"
