@@ -34,7 +34,10 @@ enum Command {
     },
     Diff {
         endpoint: String,
+        #[arg(long, default_value = "10")]
+        last: usize,
     },
+    Init,
 }
 
 #[tokio::main]
@@ -72,8 +75,68 @@ async fn main() -> Result<()> {
             let _ = proxy::run_proxy(&listen, &target_a, &target_b).await;
         }
         Command::Diff { .. } => {
-            println!("Diff mode is not yet implemented (Phase 3 milestone)");
+            
+        Command::Diff { endpoint, last } => {
+            let store = driftmap_core::store::Store::open(".driftmap.db")?;
+            let pairs = store.recent_pairs(&endpoint, last)?;
+            if pairs.is_empty() {
+                println!("No diverging pairs found for endpoint: {}", endpoint);
+                return Ok(());
+            }
+            
+            for pair in pairs {
+                println!("\n\x1b[1m=== Diff at {} ===\x1b[0m", pair.recorded_at);
+                println!("Target A Status: {} | Target B Status: {}", pair.status_a, pair.status_b);
+                
+                let body_a_str = String::from_utf8_lossy(&pair.body_a);
+                let body_b_str = String::from_utf8_lossy(&pair.body_b);
+                
+                let diff = similar::TextDiff::from_lines(&body_a_str, &body_b_str);
+                for change in diff.iter_all_changes() {
+                    let (sign, style) = match change.tag() {
+                        similar::ChangeTag::Delete => ("-", console::Style::new().red()),
+                        similar::ChangeTag::Insert => ("+", console::Style::new().green()),
+                        similar::ChangeTag::Equal => (" ", console::Style::new().dim()),
+                    };
+                    print!("{}{}", style.apply_to(sign), style.apply_to(change));
+                }
+            }
         }
+        Command::Init => {
+            use dialoguer::{Input, Select};
+            use std::fs::File;
+            use std::io::Write;
+
+            println!("Welcome to DriftMap Init Wizard\n");
+            
+            let interface: String = Input::new()
+                .with_prompt("Which interface should DriftMap listen on?")
+                .default("eth0".into())
+                .interact_text()?;
+
+            let target_a: String = Input::new()
+                .with_prompt("Target A address (e.g., 127.0.0.1:3000)")
+                .default("127.0.0.1:3000".into())
+                .interact_text()?;
+
+            let target_b: String = Input::new()
+                .with_prompt("Target B address (e.g., 127.0.0.1:3001)")
+                .default("127.0.0.1:3001".into())
+                .interact_text()?;
+
+            let toml_content = format!(
+r#"[watch]
+interface = "{}"
+target_a = "{}"
+target_b = "{}"
+"#, interface, target_a, target_b);
+
+            let mut file = File::create("driftmap.toml")?;
+            file.write_all(toml_content.as_bytes())?;
+            
+            println!("\n✅ Created driftmap.toml successfully!");
+        }
+
     }
 
     Ok(())
