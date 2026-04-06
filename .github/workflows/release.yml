@@ -20,7 +20,7 @@ jobs:
       - name: Install Rust Toolchain
         uses: dtolnay/rust-toolchain@nightly
         with:
-          targets: ${{ matrix.target }}, bpfel-unknown-none
+          targets: ${{ matrix.target }}
           components: rust-src
           
       - name: Install bpf-linker
@@ -31,7 +31,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
         
       - name: Build eBPF Probe
-        run: cargo build --target bpfel-unknown-none --release -p driftmap-probe
+        run: cargo build --target bpfel-unknown-none -Z build-std=core --release -p driftmap-probe
         
       - name: Build Userspace CLI
         run: |
