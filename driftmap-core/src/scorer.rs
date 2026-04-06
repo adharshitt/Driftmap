@@ -31,7 +31,6 @@ impl Scorer {
             window_size: 1000,
         }
     }
-    }
 
     pub fn ingest_diff(&mut self, diff: RawProtocolDivergence) {
         self.distribution.observe(crate::matcher::Target::A, diff.latency_delta_us as f64);
