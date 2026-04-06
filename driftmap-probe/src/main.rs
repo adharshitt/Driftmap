@@ -72,9 +72,10 @@ fn evaluate_network_packet(ctx: TcContext) -> Result<i32, ()> {
             (*ev).src_port = src_port;
             (*ev).dst_port = dst_port;
             (*ev).payload_len = payload_len as u16;
-            ctx.load_bytes(payload_offset, &mut (*ev).payload[..payload_len]).map_err(|_| {
+            if ctx.load_bytes(payload_offset, &mut (*ev).payload[..payload_len]).is_err() {
                 event.discard(0);
-            })?;
+                return Ok(TC_ACT_OK);
+            }
         }
         event.submit(0);
     }
