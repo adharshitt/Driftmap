@@ -1,0 +1,9 @@
+replicaCount: 1
+image:
+  repository: ghcr.io/adharshitt/driftmap
+  pullPolicy: IfNotPresent
+  tag: "latest"
+config:
+  interface: "eth0"
+  target_a: "127.0.0.1:3000"
+  target_b: "127.0.0.1:3001"

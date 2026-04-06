@@ -13,3 +13,8 @@ tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
 tracing-subscriber = "0.3"
 anyhow = "1"
+
+dialoguer = "0.11"
+notify = "6.1"
+similar = "2.3"
+console = "0.15"

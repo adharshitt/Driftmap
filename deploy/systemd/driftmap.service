@@ -1,0 +1,12 @@
+[Unit]
+Description=DriftMap Service
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/driftmap watch --config /etc/driftmap.toml
+Restart=always
+User=root
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_BPF CAP_SYS_ADMIN
+
+[Install]
+WantedBy=multi-user.target

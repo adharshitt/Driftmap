@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "driftmap.fullname" . }}
+spec:
+  selector:
+    matchLabels:
+      app: driftmap
+  template:
+    metadata:
+      labels:
+        app: driftmap
+    spec:
+      hostNetwork: true
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
+                - SYS_ADMIN
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/driftmap
+      volumes:
+        - name: config-volume
+          configMap:
+            name: driftmap-config

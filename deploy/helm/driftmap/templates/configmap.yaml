@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: driftmap-config
+data:
+  driftmap.toml: |
+    [watch]
+    interface = "{{ .Values.config.interface }}"
+    target_a = "{{ .Values.config.target_a }}"
+    target_b = "{{ .Values.config.target_b }}"

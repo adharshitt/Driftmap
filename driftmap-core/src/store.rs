@@ -5,7 +5,44 @@ pub struct Store {
     conn: Connection,
 }
 
+
+#[derive(Debug)]
+pub struct DivergingPairRecord {
+    pub id: i64,
+    pub endpoint: String,
+    pub req_method: String,
+    pub req_path: String,
+    pub status_a: u16,
+    pub status_b: u16,
+    pub body_a: Vec<u8>,
+    pub body_b: Vec<u8>,
+    pub recorded_at: i64,
+}
+
 impl Store {
+    pub fn recent_pairs(&self, endpoint: &str, limit: usize) -> anyhow::Result<Vec<DivergingPairRecord>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, endpoint, req_method, req_path, status_a, status_b, body_a, body_b, recorded_at 
+             FROM diverging_pairs 
+             WHERE endpoint = ?1 
+             ORDER BY recorded_at DESC LIMIT ?2"
+        )?;
+        let rows = stmt.query_map(rusqlite::params![endpoint, limit as i64], |row| {
+            Ok(DivergingPairRecord {
+                id: row.get(0)?,
+                endpoint: row.get(1)?,
+                req_method: row.get(2)?,
+                req_path: row.get(3)?,
+                status_a: row.get::<_, i64>(4)? as u16,
+                status_b: row.get::<_, i64>(5)? as u16,
+                body_a: row.get(6)?,
+                body_b: row.get(7)?,
+                recorded_at: row.get(8)?,
+            })
+        })?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+    }
+
     pub fn open(path: &str) -> anyhow::Result<Self> {
         let conn = Connection::open(path)?;
         conn.execute_batch("
