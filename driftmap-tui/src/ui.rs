@@ -16,29 +16,58 @@ pub fn draw(f: &mut Frame, app: &App) {
     draw_endpoint_detail(f, app, chunks[1]);
 }
 
+fn score_to_color(score: f32) -> Color {
+    if score < 0.05 { Color::Green }
+    else if score < 0.50 { Color::Yellow }
+    else { Color::Red }
+}
+
+fn score_to_symbol(score: f32) -> &'static str {
+    if score < 0.05 { "✓" }
+    else if score < 0.50 { "⚠" }
+    else { "✗" }
+}
+
 fn draw_endpoint_list(f: &mut Frame, app: &App, area: Rect) {
     let items: Vec<ListItem> = app.scores.iter().enumerate().map(|(i, score)| {
+        let color = score_to_color(score.score);
+        let symbol = score_to_symbol(score.score);
+        let text = format!("{} {:6.1}%  {}", symbol, score.score * 100.0, score.endpoint);
+        
         let style = if i == app.selected {
-            Style::default().bg(Color::DarkGray).add_modifier(Modifier::BOLD)
+            Style::default().bg(Color::DarkGray).fg(color).add_modifier(Modifier::BOLD)
         } else {
-            Style::default()
+            Style::default().fg(color)
         };
-        ListItem::new(format!("{} - {:.1}%", score.endpoint, score.score * 100.0)).style(style)
+        ListItem::new(text).style(style)
     }).collect();
 
     let list = List::new(items)
-        .block(Block::default().borders(Borders::ALL).title(" Endpoints "));
+        .block(Block::default().borders(Borders::ALL).title(" Endpoints (s:Score n:Name r:Requests) "));
     f.render_widget(list, area);
 }
 
 fn draw_endpoint_detail(f: &mut Frame, app: &App, area: Rect) {
-    let text = if let Some(score) = app.scores.get(app.selected) {
-        format!("Endpoint: {}\nScore: {:.1}%\nRequests: {}", 
-            score.endpoint, score.score * 100.0, score.sample_count)
-    } else {
-        "No endpoint selected".to_string()
-    };
+    if let Some(score) = app.scores.get(app.selected) {
+        let text = format!(
+            "Endpoint: {}\n\
+             Drift Score: {:.1}%\n\
+             Sample Count: {}\n\n\
+             Breakdown:\n\
+             - Status:   {:.1}%\n\
+             - Schema:   {:.1}%\n\
+             - Latency:  {:.1}%\n\
+             - Headers:  {:.1}%", 
+            score.endpoint, score.score * 100.0, score.sample_count,
+            score.status_score * 100.0, score.schema_score * 100.0, 
+            score.latency_score * 100.0, score.header_score * 100.0
+        );
 
-    let p = Paragraph::new(text).block(Block::default().borders(Borders::ALL).title(" Details "));
-    f.render_widget(p, area);
+        let p = Paragraph::new(text).block(Block::default().borders(Borders::ALL).title(" Details "));
+        f.render_widget(p, area);
+    } else {
+        let p = Paragraph::new("No endpoint selected or waiting for traffic...")
+            .block(Block::default().borders(Borders::ALL).title(" Details "));
+        f.render_widget(p, area);
+    }
 }
