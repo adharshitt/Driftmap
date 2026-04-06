@@ -23,17 +23,14 @@ pub struct Scorer {
 
 impl Scorer {
     pub fn new() -> Self {
-            schema_inferrer: crate::schema::SchemaInferrer::new(),
-            distribution: crate::distribution::FieldDistribution::new(),
-
         Self {
+            normalizer: crate::semantic::SemanticNormalizer::new(vec![]),
             schema_inferrer: crate::schema::SchemaInferrer::new(),
             distribution: crate::distribution::FieldDistribution::new(),
-
-            normalizer: crate::semantic::SemanticNormalizer::new(vec![]),
-            recent_diffs: HashMap::new(),
+            recent_diffs: std::collections::HashMap::new(),
             window_size: 1000,
         }
+    }
     }
 
     pub fn ingest_diff(&mut self, diff: RawProtocolDivergence) {

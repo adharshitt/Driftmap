@@ -82,7 +82,7 @@ pub async fn initialize_observability_pipeline(
                         body: vec![],
                         captured_at: std::time::Instant::now(),
                     };
-                    matcher.ingest(target, dummy_req, res);
+                    matcher.process_incoming_payload(target, dummy_req, res);
                 }
             }
         }

@@ -58,7 +58,7 @@ impl Reassembler {
         buf.data.extend_from_slice(&event.payload[..event.payload_len as usize]);
         buf.last_seen_ms = now;
 
-        while let Some((msg, consumed)) = try_extract_message(&buf.data) {
+        while let Some(consumed) = try_extract_message(&buf.data) {
             if let Some(parsed) = parse_http_message(&buf.data[..consumed]) {
                 let _ = self.tx.try_send((key.clone(), parsed));
             }
