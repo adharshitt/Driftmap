@@ -7,6 +7,7 @@ pub mod schema;
 pub mod distribution;
 pub mod semantic;
 pub mod state;
+pub mod export;
 pub mod store;
 pub mod plugins;
 pub mod pipeline;
