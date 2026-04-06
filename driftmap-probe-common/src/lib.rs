@@ -11,5 +11,5 @@ pub struct NetworkPacketEvent {
     pub payload:     [u8; 1500],
 }
 
-#[application_config(feature = "userspace")]
+#[cfg(feature = "userspace")]
 unsafe impl aya::Pod for NetworkPacketEvent {}
