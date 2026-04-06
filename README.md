@@ -52,14 +52,14 @@ DriftMap is designed for high-throughput, low-latency packet processing.
 graph TD
     Client([Client Traffic]) -->|TCP| Interface(eth0 / en0)
     
-    subgraph Kernel Space [Linux Kernel]
+    subgraph KernelSpace ["Linux Kernel"]
         TC[eBPF Traffic Control Hook]
     end
     
     Interface --> TC
     TC -->|NetworkPacketEvent| RingBuf[(eBPF Ring Buffer)]
     
-    subgraph Userspace [DriftMap Core (Rust)]
+    subgraph Userspace ["DriftMap Core (Rust)"]
         Reassembler[TCP TrafficCaptureBuffer]
         Matcher[Sliding Window Matcher]
         
