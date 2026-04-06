@@ -87,10 +87,15 @@ impl Matcher {
         }
 
         // No match found, add to pending
-        my_pending
+        let queue = my_pending
             .entry(key)
-            .or_insert_with(VecDeque::new)
-            .push_back(PendingRequest {
+            .or_insert_with(VecDeque::new);
+            
+        // HashDoS Prevention: Cap pending queue at 100 requests per endpoint
+        if queue.len() >= 100 {
+            queue.pop_front();
+        }
+        queue.push_back(PendingRequest {
                 request: req,
                 response: res,
                 arrived_at: Instant::now(),

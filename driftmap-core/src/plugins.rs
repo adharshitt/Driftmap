@@ -14,8 +14,10 @@ pub struct PluginHost {
 
 impl PluginHost {
     pub fn new() -> Self {
+        let mut config = wasmtime::Config::new();
+        config.consume_fuel(true);
         Self {
-            engine: Engine::default(),
+            engine: Engine::new(&config).unwrap_or_default(),
             plugins: Vec::new(),
         }
     }
@@ -24,6 +26,7 @@ impl PluginHost {
         let module = Module::from_file(&self.engine, path)?;
         let linker = Linker::new(&self.engine);
         let mut store = Store::new(&self.engine, ());
+        store.set_fuel(100_000).unwrap_or(()); // Cap execution to prevent infinite loop hangs
         let instance = linker.instantiate(&mut store, &module)?;
         
         self.plugins.push(LoadedPlugin { instance, store, applies_to });
@@ -69,6 +72,8 @@ impl PluginHost {
         let body_b_ptr = alloc.call(&mut plugin.store, pair.res_b.body.len() as u32).ok()?;
         memory.write(&mut plugin.store, body_b_ptr as usize, &pair.res_b.body).ok()?;
 
+        // Replenish fuel before execution
+        plugin.store.set_fuel(100_000).unwrap_or(());
         // Execute (passing 0 for omitted fields for brevity in this MVP)
         score_fn.call(&mut plugin.store, (
             0, 0, 0, 0, body_a_ptr, pair.res_a.body.len() as u32,

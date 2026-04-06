@@ -52,6 +52,9 @@ impl Reassembler {
             last_seen_ms: now,
         });
 
+        if buf.data.len() + event.payload_len as usize > 1024 * 1024 {
+            return; // OOM Prevention: Limit TCP buffer to 1MB
+        }
         buf.data.extend_from_slice(&event.payload[..event.payload_len as usize]);
         buf.last_seen_ms = now;
 
