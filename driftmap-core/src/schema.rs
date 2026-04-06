@@ -13,7 +13,7 @@ pub enum FieldType {
     Null,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, PartialEq)]
 pub struct FieldStats {
     pub field_type:   FieldType,
     pub seen_count:   u32,

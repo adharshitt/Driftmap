@@ -99,6 +99,7 @@ impl Matcher {
                 request: req,
                 response: res,
                 arrived_at: Instant::now(),
+                captured_at: Instant::now(),
             });
     }
 

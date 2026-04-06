@@ -109,7 +109,7 @@ fn try_extract_message(data: &[u8]) -> Option<(HttpMessage, usize)> {
     // parse_http_message is called by the caller.
     Some((HttpMessage::Request(/* dummy */ HttpRequest { 
         method: String::new(), path: String::new(), path_template: String::new(), 
-        headers: vec![], body: vec![] 
+        headers: vec![], body: vec![], captured_at: std::time::Instant::now() 
     }), total_len))
 }
 
