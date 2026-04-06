@@ -3,4 +3,5 @@ pub mod capture;
 pub mod matcher;
 pub mod diff;
 pub mod scorer;
+pub mod schema;
 pub mod pipeline;
