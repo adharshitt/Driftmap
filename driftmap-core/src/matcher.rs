@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use crate::http::{HttpRequest, HttpResponse};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, Hash, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Target {
     A,
     B,
