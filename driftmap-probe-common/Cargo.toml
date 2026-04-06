@@ -1,0 +1,10 @@
+[package]
+name = "driftmap-probe-common"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+aya = { version = "0.12", default-features = false, optional = true }
+
+[features]
+userspace = ["dep:aya"]

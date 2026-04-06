@@ -1,0 +1,6 @@
+[build]
+target = "x86_64-unknown-linux-gnu"
+
+[target.bpfel-unknown-none]
+runner = "true"
+rustflags = ["-C", "linker=bpf-linker", "-C", "link-arg=--export=all"]

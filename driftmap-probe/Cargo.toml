@@ -1,0 +1,13 @@
+[package]
+name = "driftmap-probe"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+aya-ebpf = "0.1"
+aya-log-ebpf = "0.1"
+driftmap-probe-common = { path = "../driftmap-probe-common" }
+
+[[bin]]
+name = "driftmap-probe"
+path = "src/main.rs"
