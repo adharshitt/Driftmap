@@ -82,19 +82,9 @@ async fn main() -> Result<()> {
             // Hand over main thread to TUI
             launch_terminal_dashboard(score_rx).await?;
         }
-    Proxy {
-        #[arg(long, default_value = "0.0.0.0:8080")]
-        listen: String,
-        #[arg(long)]
-        target_a: String,
-        #[arg(long)]
-        target_b: String,
-    },
         Command::Proxy { listen, target_a, target_b } => {
             let _ = proxy::initialize_mirror_proxy_service(&listen, &target_a, &target_b).await;
         }
-        Command::Diff { .. } => {
-            
         Command::Diff { endpoint, last } => {
             let store = driftmap_core::store::Store::open(".driftmap.db")?;
             let pairs = store.recent_pairs(&endpoint, last)?;

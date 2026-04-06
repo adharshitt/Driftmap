@@ -77,7 +77,7 @@ impl Reassembler {
     }
 }
 
-fn try_extract_message(data: &[u8]) -> Option<(HttpMessage, usize)> {
+fn try_extract_message(data: &[u8]) -> Option<usize> {
     let mut headers = [httparse::EMPTY_HEADER; 64];
     let header_len = if data.starts_with(b"HTTP/") {
         let mut res = httparse::Response::new(&mut headers);
@@ -105,12 +105,7 @@ fn try_extract_message(data: &[u8]) -> Option<(HttpMessage, usize)> {
         return None;
     }
 
-    // Note: We don't actually need the HttpMessage here, just the length.
-    // parse_http_message is called by the caller.
-    Some((HttpMessage::Request(/* dummy */ HttpRequest { 
-        method: String::new(), path: String::new(), path_template: String::new(), 
-        headers: vec![], body: vec![], captured_at: std::time::Instant::now() 
-    }), total_len))
+    Some(total_len)
 }
 
 // Fixed the dummy Request to match the new definition

@@ -13,6 +13,9 @@ pub struct BehavioralDivergenceScore {
 }
 
 pub struct Scorer {
+    pub schema_inferrer: crate::schema::SchemaInferrer,
+    pub distribution: crate::distribution::FieldDistribution,
+
     pub normalizer: crate::semantic::SemanticNormalizer,
     recent_diffs: HashMap<String, VecDeque<RawProtocolDivergence>>,
     window_size:   usize,
@@ -20,7 +23,13 @@ pub struct Scorer {
 
 impl Scorer {
     pub fn new() -> Self {
+            schema_inferrer: crate::schema::SchemaInferrer::new(),
+            distribution: crate::distribution::FieldDistribution::new(),
+
         Self {
+            schema_inferrer: crate::schema::SchemaInferrer::new(),
+            distribution: crate::distribution::FieldDistribution::new(),
+
             normalizer: crate::semantic::SemanticNormalizer::new(vec![]),
             recent_diffs: HashMap::new(),
             window_size: 1000,
@@ -28,6 +37,9 @@ impl Scorer {
     }
 
     pub fn ingest_diff(&mut self, diff: RawProtocolDivergence) {
+        self.distribution.observe(crate::matcher::Target::A, diff.latency_delta_us as f64);
+        self.distribution.observe(crate::matcher::Target::B, 0.0);
+
         let diffs = self.recent_diffs.entry(diff.endpoint.clone()).or_insert_with(|| VecDeque::with_capacity(1000));
         diffs.push_back(diff);
         if diffs.len() > self.window_size {
@@ -44,7 +56,7 @@ impl Scorer {
         
         // Phase 2: Schema and Latency scores will be integrated here. 
         // For Phase 1 MVP, we use status and headers.
-        let schema_score = 0.0;
+        let schema_score = if self.schema_inferrer.diff(endpoint).is_some() { 1.0 } else { 0.0 };
         let latency_score = (diffs.iter().map(|d| d.latency_delta_us.abs()).sum::<i64>() as f32 / count / 100000.0).min(1.0);
 
         let header_score = diffs.iter().map(|d| {

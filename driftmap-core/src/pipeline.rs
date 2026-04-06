@@ -61,8 +61,30 @@ pub async fn initialize_observability_pipeline(
     });
 
     tokio::spawn(async move {
-        while let Some((key, msg)) = match_rx.recv().await {
-            // Simplified MVP matching logic
+                while let Some((key, msg)) = match_rx.recv().await {
+            let target = if key.dst_port == target_a_port || key.src_port == target_a_port {
+                Target::A
+            } else {
+                Target::B
+            };
+            
+            match msg {
+                crate::http::HttpMessage::Request(req) => {
+                    // We only pass req/res pairs to Matcher. Wait for response.
+                }
+                crate::http::HttpMessage::Response(res) => {
+                    // In MVP, we construct a dummy request to pair with response
+                    let dummy_req = crate::http::HttpRequest {
+                        method: "GET".to_string(),
+                        path: "unknown".to_string(),
+                        path_template: "unknown".to_string(),
+                        headers: vec![],
+                        body: vec![],
+                        captured_at: std::time::Instant::now(),
+                    };
+                    matcher.ingest(target, dummy_req, res);
+                }
+            }
         }
     });
 
