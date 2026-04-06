@@ -5,4 +5,5 @@ pub mod diff;
 pub mod scorer;
 pub mod schema;
 pub mod distribution;
+pub mod semantic;
 pub mod pipeline;

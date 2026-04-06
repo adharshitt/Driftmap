@@ -13,13 +13,16 @@ pub struct DriftScore {
 }
 
 pub struct Scorer {
+    pub normalizer: crate::semantic::SemanticNormalizer,
     recent_diffs: HashMap<String, VecDeque<RawDiff>>,
     window_size:   usize,
 }
 
 impl Scorer {
     pub fn new() -> Self {
+            normalizer: crate::semantic::SemanticNormalizer::new(vec![]),
         Self {
+            normalizer: crate::semantic::SemanticNormalizer::new(vec![]),
             recent_diffs: HashMap::new(),
             window_size: 1000,
         }
