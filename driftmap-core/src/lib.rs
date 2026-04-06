@@ -6,4 +6,5 @@ pub mod scorer;
 pub mod schema;
 pub mod distribution;
 pub mod semantic;
+pub mod state;
 pub mod pipeline;
