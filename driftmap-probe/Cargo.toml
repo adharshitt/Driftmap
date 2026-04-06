@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+network-types = "0.0.5"
 aya-ebpf = "0.1.0"
 aya-log-ebpf = "0.1.0"
 driftmap-probe-common = { path = "../driftmap-probe-common" }
