@@ -20,7 +20,6 @@ pub struct Scorer {
 
 impl Scorer {
     pub fn new() -> Self {
-            normalizer: crate::semantic::SemanticNormalizer::new(vec![]),
         Self {
             normalizer: crate::semantic::SemanticNormalizer::new(vec![]),
             recent_diffs: HashMap::new(),

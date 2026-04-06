@@ -59,7 +59,7 @@ fn parse_request(raw: &[u8]) -> Option<HttpRequest> {
             let body_end = (header_len + content_length).min(raw.len());
             let body = raw[header_len..body_end].to_vec();
 
-            Some(HttpRequest { method, path, path_template, headers: hdrs, body })
+            Some(HttpRequest { method, path, path_template, headers: hdrs, body, captured_at: Instant::now() })
         }
         _ => None,
     }
@@ -89,7 +89,7 @@ fn parse_response(raw: &[u8]) -> Option<HttpResponse> {
             let body_end = (header_len + content_length).min(raw.len());
             let body = raw[header_len..body_end].to_vec();
 
-            Some(HttpResponse { status, headers: hdrs, body })
+            Some(HttpResponse { status, headers: hdrs, body, captured_at: Instant::now() })
         }
         _ => None,
     }
