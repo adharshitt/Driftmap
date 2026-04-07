@@ -1,0 +1,8 @@
+name = "driftmap-dashboard"
+compatibility_date = "2024-04-05"
+pages_build_output_dir = "public"
+
+[[durable_objects.bindings]]
+name = "BROADCASTER"
+class_name = "Broadcaster"
+script_name = "driftmap-sock"

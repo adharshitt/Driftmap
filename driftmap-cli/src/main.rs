@@ -38,6 +38,23 @@ enum Command {
         last: usize,
     },
     Init,
+    Web {
+        #[command(subcommand)]
+        action: WebAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum WebAction {
+    /// Start a local development server for the dashboard
+    Dev,
+    /// Build and deploy the dashboard to Cloudflare Pages
+    Deploy {
+        #[arg(long)]
+        project: Option<String>,
+    },
+    /// Initialize Cloudflare infrastructure (KV, Socket Hub)
+    Init,
 }
 
 #[tokio::main]
@@ -144,6 +161,48 @@ target_b = "{}"
             file.write_all(toml_content.as_bytes())?;
             
             println!("\n✅ Created driftmap.toml successfully!");
+        }
+        Command::Web { action } => {
+            use std::process::Command;
+            
+            match action {
+                WebAction::Dev => {
+                    println!("🚀 Starting local dashboard development server...");
+                    Command::new("npx")
+                        .args(["wrangler", "pages", "dev", "cf-dashboard/public"])
+                        .status()?;
+                }
+                WebAction::Deploy { project } => {
+                    let project_name = project.unwrap_or_else(|| "driftmap-dashboard".to_string());
+                    println!("📦 Deploying dashboard to Cloudflare Pages [Project: {}]...", project_name);
+                    
+                    // Deploy Socket Hub first
+                    println!("📡 Updating WebSocket Hub...");
+                    Command::new("npx")
+                        .args(["wrangler", "deploy"])
+                        .current_dir("cf-socket")
+                        .status()?;
+
+                    // Deploy Pages
+                    println!("🌎 Pushing frontend to the edge...");
+                    Command::new("npx")
+                        .args(["wrangler", "pages", "deploy", "public", "--project-name", &project_name])
+                        .current_dir("cf-dashboard")
+                        .status()?;
+                    
+                    println!("\n✨ Deployment Complete! Your live dashboard is ready.");
+                }
+                WebAction::Init => {
+                    println!("🔧 Initializing Cloudflare Infrastructure...");
+                    
+                    // Create KV Namespace
+                    Command::new("npx")
+                        .args(["wrangler", "kv", "namespace", "create", "DRIFT_DATA"])
+                        .status()?;
+                    
+                    println!("\n✅ Cloudflare infrastructure provisioned. Run 'driftmap web deploy' to go live.");
+                }
+            }
         }
 
     }
