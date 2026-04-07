@@ -1,18 +1,18 @@
-use std::collections::HashMap;
 use crate::matcher::MatchedPair;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub struct RawProtocolDivergence {
-    pub endpoint:        String,
-    pub status_match:    bool,
-    pub status_a:        u16,
-    pub status_b:        u16,
-    pub headers_only_a:  Vec<String>,
-    pub headers_only_b:  Vec<String>,
+    pub endpoint: String,
+    pub status_match: bool,
+    pub status_a: u16,
+    pub status_b: u16,
+    pub headers_only_a: Vec<String>,
+    pub headers_only_b: Vec<String>,
     pub headers_value_diff: Vec<(String, String, String)>,
-    pub body_identical:  bool,
-    pub body_a_len:      usize,
-    pub body_b_len:      usize,
+    pub body_identical: bool,
+    pub body_a_len: usize,
+    pub body_b_len: usize,
     pub latency_delta_us: i64,
 }
 
@@ -51,20 +51,28 @@ pub fn calculate_protocol_divergence(pair: &MatchedPair) -> RawProtocolDivergenc
 
     // Latency is the difference between response capture times
     // In a real scenario, this would be (res_capture - req_capture)
-    let lat_a = pair.res_a.captured_at.duration_since(pair.req_a.captured_at).as_micros() as i64;
-    let lat_b = pair.res_b.captured_at.duration_since(pair.req_b.captured_at).as_micros() as i64;
+    let lat_a = pair
+        .res_a
+        .captured_at
+        .duration_since(pair.req_a.captured_at)
+        .as_micros() as i64;
+    let lat_b = pair
+        .res_b
+        .captured_at
+        .duration_since(pair.req_b.captured_at)
+        .as_micros() as i64;
 
     RawProtocolDivergence {
-        endpoint:        pair.endpoint.clone(),
+        endpoint: pair.endpoint.clone(),
         status_match,
-        status_a:        pair.res_a.status,
-        status_b:        pair.res_b.status,
+        status_a: pair.res_a.status,
+        status_b: pair.res_b.status,
         headers_only_a,
         headers_only_b,
         headers_value_diff,
         body_identical,
-        body_a_len:      pair.res_a.body.len(),
-        body_b_len:      pair.res_b.body.len(),
+        body_a_len: pair.res_a.body.len(),
+        body_b_len: pair.res_b.body.len(),
         latency_delta_us: lat_a - lat_b,
     }
 }

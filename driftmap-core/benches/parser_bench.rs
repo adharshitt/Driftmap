@@ -3,7 +3,7 @@ use driftmap_core::http::parse_http_message;
 
 fn bench_http_parser(c: &mut Criterion) {
     let payload = b"GET /api/users/1234-5678-9012-3456 HTTP/1.1\r\nHost: example.com\r\nUser-Agent: curl/7.68.0\r\nAccept: */*\r\n\r\n";
-    
+
     c.bench_function("parse_http_message GET", |b| {
         b.iter(|| parse_http_message(black_box(payload)))
     });

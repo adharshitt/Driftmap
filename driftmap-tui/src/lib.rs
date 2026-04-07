@@ -2,16 +2,20 @@ pub mod app;
 pub mod events;
 pub mod ui;
 
-use ratatui::{backend::CrosstermBackend, Terminal};
 use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use ratatui::{backend::CrosstermBackend, Terminal};
 use std::io::stdout;
 use std::time::Duration;
 use tokio::sync::watch;
 
-pub async fn launch_terminal_dashboard(score_rx: watch::Receiver<driftmap_core::scorer::DashboardUpdate>) -> anyhow::Result<()> {
+pub async fn launch_terminal_dashboard(
+    score_rx: watch::Receiver<driftmap_core::scorer::DashboardUpdate>,
+    target_a: String,
+    target_b: String,
+) -> anyhow::Result<()> {
     enable_raw_mode()?;
     let mut stdout = stdout();
     execute!(stdout, EnterAlternateScreen)?;
@@ -19,6 +23,8 @@ pub async fn launch_terminal_dashboard(score_rx: watch::Receiver<driftmap_core::
     let mut terminal = Terminal::new(backend)?;
 
     let mut app = app::App::new(score_rx);
+    app.target_a = target_a;
+    app.target_b = target_b;
     let mut tick_rate = tokio::time::interval(Duration::from_millis(100));
 
     loop {
@@ -28,7 +34,7 @@ pub async fn launch_terminal_dashboard(score_rx: watch::Receiver<driftmap_core::
             let update = app.score_rx.borrow_and_update().clone();
             app.scores = update.scores;
             app.health = update.health;
-            
+
             app.scores.sort_by(|a, b| match app.sort_by {
                 app::SortMode::ByScore => b.score.partial_cmp(&a.score).unwrap(),
                 app::SortMode::ByName => a.endpoint.cmp(&b.endpoint),
@@ -36,7 +42,7 @@ pub async fn launch_terminal_dashboard(score_rx: watch::Receiver<driftmap_core::
             });
         }
 
-        terminal.draw(|f| ui::draw(f, &app))?;
+        terminal.draw(|f| ui::draw(f, &mut app))?;
 
         if events::handle_events(&mut app)? {
             break;

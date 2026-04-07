@@ -1,5 +1,5 @@
-use std::collections::{HashMap, VecDeque};
 use crate::diff::RawProtocolDivergence;
+use std::collections::{HashMap, VecDeque};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
 pub struct SystemHealth {
@@ -17,13 +17,13 @@ pub struct DashboardUpdate {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct BehavioralDivergenceScore {
-    pub endpoint:      String,
-    pub score:         f32,
-    pub status_score:  f32,
-    pub schema_score:  f32,
+    pub endpoint: String,
+    pub score: f32,
+    pub status_score: f32,
+    pub schema_score: f32,
     pub latency_score: f32,
-    pub header_score:  f32,
-    pub sample_count:  u64,
+    pub header_score: f32,
+    pub sample_count: u64,
 }
 
 pub struct Scorer {
@@ -32,7 +32,7 @@ pub struct Scorer {
 
     pub normalizer: crate::semantic::SemanticNormalizer,
     recent_diffs: HashMap<String, VecDeque<RawProtocolDivergence>>,
-    window_size:   usize,
+    window_size: usize,
 }
 
 impl Default for Scorer {
@@ -48,13 +48,26 @@ impl Scorer {
             schema_inferrer: crate::schema::SchemaInferrer::new(),
             distribution: crate::distribution::FieldDistribution::new(),
             recent_diffs: HashMap::new(),
-            window_size:   100,
+            window_size: 100,
         }
     }
 
-    pub fn score_pair(&mut self, _endpoint: &str, status_a: u16, status_b: u16, body_a: &[u8], body_b: &[u8]) -> f32 {
-        let norm_a = self.normalizer.normalize(body_a).unwrap_or_else(|| body_a.to_vec());
-        let norm_b = self.normalizer.normalize(body_b).unwrap_or_else(|| body_b.to_vec());
+    pub fn score_pair(
+        &mut self,
+        _endpoint: &str,
+        status_a: u16,
+        status_b: u16,
+        body_a: &[u8],
+        body_b: &[u8],
+    ) -> f32 {
+        let norm_a = self
+            .normalizer
+            .normalize(body_a)
+            .unwrap_or_else(|| body_a.to_vec());
+        let norm_b = self
+            .normalizer
+            .normalize(body_b)
+            .unwrap_or_else(|| body_b.to_vec());
 
         let status_score: f32 = if status_a != status_b { 0.5 } else { 0.0 };
         let body_score: f32 = if norm_a != norm_b { 0.5 } else { 0.0 };
@@ -63,10 +76,14 @@ impl Scorer {
     }
 
     pub fn ingest_diff(&mut self, diff: RawProtocolDivergence) {
-        self.distribution.observe(crate::matcher::Target::A, diff.latency_delta_us as f64);
+        self.distribution
+            .observe(crate::matcher::Target::A, diff.latency_delta_us as f64);
         self.distribution.observe(crate::matcher::Target::B, 0.0);
 
-        let diffs = self.recent_diffs.entry(diff.endpoint.clone()).or_insert_with(|| VecDeque::with_capacity(1000));
+        let diffs = self
+            .recent_diffs
+            .entry(diff.endpoint.clone())
+            .or_insert_with(|| VecDeque::with_capacity(1000));
         diffs.push_back(diff);
         if diffs.len() > self.window_size {
             diffs.pop_front();
@@ -75,20 +92,37 @@ impl Scorer {
 
     pub fn compute_score(&self, endpoint: &str) -> Option<BehavioralDivergenceScore> {
         let diffs = self.recent_diffs.get(endpoint)?;
-        if diffs.is_empty() { return None; }
+        if diffs.is_empty() {
+            return None;
+        }
 
         let count = diffs.len() as f32;
         let status_score = diffs.iter().filter(|d| !d.status_match).count() as f32 / count;
-        
-        let schema_score = if self.schema_inferrer.diff(endpoint).is_some() { 1.0 } else { 0.0 };
-        let latency_score = (diffs.iter().map(|d| d.latency_delta_us.abs()).sum::<i64>() as f32 / count / 100000.0).min(1.0);
 
-        let header_score = diffs.iter().map(|d| {
-            let total = d.headers_only_a.len() + d.headers_only_b.len() + d.headers_value_diff.len();
-            (total as f32 / 10.0).min(1.0)
-        }).sum::<f32>() / count;
+        let schema_score = if self.schema_inferrer.diff(endpoint).is_some() {
+            1.0
+        } else {
+            0.0
+        };
+        let latency_score =
+            (diffs.iter().map(|d| d.latency_delta_us.abs()).sum::<i64>() as f32 / count / 100000.0)
+                .min(1.0);
 
-        let score = (status_score * 0.40 + schema_score * 0.30 + latency_score * 0.20 + header_score * 0.10).clamp(0.0, 1.0);
+        let header_score = diffs
+            .iter()
+            .map(|d| {
+                let total =
+                    d.headers_only_a.len() + d.headers_only_b.len() + d.headers_value_diff.len();
+                (total as f32 / 10.0).min(1.0)
+            })
+            .sum::<f32>()
+            / count;
+
+        let score = (status_score * 0.40
+            + schema_score * 0.30
+            + latency_score * 0.20
+            + header_score * 0.10)
+            .clamp(0.0, 1.0);
 
         Some(BehavioralDivergenceScore {
             endpoint: endpoint.to_string(),
@@ -102,6 +136,9 @@ impl Scorer {
     }
 
     pub fn all_scores(&self) -> Vec<BehavioralDivergenceScore> {
-        self.recent_diffs.keys().filter_map(|e| self.compute_score(e)).collect()
+        self.recent_diffs
+            .keys()
+            .filter_map(|e| self.compute_score(e))
+            .collect()
     }
 }

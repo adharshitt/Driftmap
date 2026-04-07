@@ -1,10 +1,19 @@
+use anyhow::Result;
 use tokio::io::AsyncWriteExt;
 use tokio::net::{TcpListener, TcpStream};
-use anyhow::Result;
 
-pub async fn initialize_mirror_proxy_service(listen_addr: &str, target_a: &str, target_b: &str) -> Result<()> {
+pub async fn initialize_mirror_proxy_service(
+    listen_addr: &str,
+    target_a: &str,
+    target_b: &str,
+) -> Result<()> {
     let listener = TcpListener::bind(listen_addr).await?;
-    tracing::info!("Mirror Proxy listening on {}... forwarding to {} and {}", listen_addr, target_a, target_b);
+    tracing::info!(
+        "Mirror Proxy listening on {}... forwarding to {} and {}",
+        listen_addr,
+        target_a,
+        target_b
+    );
 
     loop {
         let (client_stream, _addr) = listener.accept().await?;
@@ -14,9 +23,12 @@ pub async fn initialize_mirror_proxy_service(listen_addr: &str, target_a: &str, 
         tokio::spawn(async move {
             let stream_a = match TcpStream::connect(&t_a).await {
                 Ok(s) => s,
-                Err(e) => { tracing::error!("Target A down: {}", e); return; }
+                Err(e) => {
+                    tracing::error!("Target A down: {}", e);
+                    return;
+                }
             };
-            
+
             // Task 49: Handle target B going offline gracefully
             let stream_b_opt = TcpStream::connect(&t_b).await.ok();
             if stream_b_opt.is_none() {
@@ -40,7 +52,7 @@ pub async fn initialize_mirror_proxy_service(listen_addr: &str, target_a: &str, 
             if let Some(mut stream_b) = stream_b_opt {
                 tokio::spawn(async move {
                     // Task 44: Production mirroring requires buffering and multi-casting.
-                    // For now, we connect but don't duplicate data to avoid complicating 
+                    // For now, we connect but don't duplicate data to avoid complicating
                     // the owned stream logic in this turn.
                     let _ = stream_b.write_all(b"").await;
                 });

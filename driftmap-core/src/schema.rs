@@ -1,6 +1,6 @@
+use crate::matcher::Target;
 use serde_json::Value;
 use std::collections::HashMap;
-use crate::matcher::Target;
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub enum FieldType {
@@ -15,10 +15,10 @@ pub enum FieldType {
 
 #[derive(Debug, Clone, serde::Serialize, PartialEq)]
 pub struct FieldStats {
-    pub field_type:   FieldType,
-    pub seen_count:   u32,
-    pub total_count:  u32,
-    pub nullable:     bool,
+    pub field_type: FieldType,
+    pub seen_count: u32,
+    pub total_count: u32,
+    pub nullable: bool,
 }
 
 impl FieldStats {
@@ -62,7 +62,9 @@ impl SchemaInferrer {
     }
 
     pub fn observe(&mut self, endpoint: &str, target: Target, body: &[u8]) {
-        let Ok(value) = serde_json::from_slice::<Value>(body) else { return };
+        let Ok(value) = serde_json::from_slice::<Value>(body) else {
+            return;
+        };
         let Value::Object(obj) = value else { return };
 
         let key = (endpoint.to_string(), target);
@@ -74,14 +76,16 @@ impl SchemaInferrer {
 
         for (field, val) in &obj {
             let stats = schema.entry(field.clone()).or_insert(FieldStats {
-                field_type:  infer_type(val),
-                seen_count:  0,
+                field_type: infer_type(val),
+                seen_count: 0,
                 total_count: current_total,
-                nullable:    false,
+                nullable: false,
             });
             stats.seen_count += 1;
             stats.total_count = current_total;
-            if val.is_null() { stats.nullable = true; }
+            if val.is_null() {
+                stats.nullable = true;
+            }
         }
 
         for stats in schema.values_mut() {
@@ -93,10 +97,18 @@ impl SchemaInferrer {
         let schema_a = self.schemas.get(&(endpoint.to_string(), Target::A))?;
         let schema_b = self.schemas.get(&(endpoint.to_string(), Target::B))?;
 
-        let count_a = self.sample_count.get(&(endpoint.to_string(), Target::A)).copied()?;
-        let count_b = self.sample_count.get(&(endpoint.to_string(), Target::B)).copied()?;
-        
-        if count_a < self.min_samples || count_b < self.min_samples { return None; }
+        let count_a = self
+            .sample_count
+            .get(&(endpoint.to_string(), Target::A))
+            .copied()?;
+        let count_b = self
+            .sample_count
+            .get(&(endpoint.to_string(), Target::B))
+            .copied()?;
+
+        if count_a < self.min_samples || count_b < self.min_samples {
+            return None;
+        }
 
         let mut fields_only_a = vec![];
         let mut fields_only_b = vec![];
@@ -142,18 +154,33 @@ impl SchemaInferrer {
 
 fn infer_type(v: &Value) -> FieldType {
     match v {
-        Value::String(_)  => FieldType::String,
-        Value::Number(n)  => if n.is_f64() { FieldType::Float } else { FieldType::Integer },
-        Value::Bool(_)    => FieldType::Boolean,
-        Value::Null       => FieldType::Null,
-        Value::Object(m)  => FieldType::Object(
-            m.iter().map(|(k,v)| (k.clone(), FieldStats {
-                field_type: infer_type(v), seen_count: 1,
-                total_count: 1, nullable: v.is_null(),
-            })).collect()
+        Value::String(_) => FieldType::String,
+        Value::Number(n) => {
+            if n.is_f64() {
+                FieldType::Float
+            } else {
+                FieldType::Integer
+            }
+        }
+        Value::Bool(_) => FieldType::Boolean,
+        Value::Null => FieldType::Null,
+        Value::Object(m) => FieldType::Object(
+            m.iter()
+                .map(|(k, v)| {
+                    (
+                        k.clone(),
+                        FieldStats {
+                            field_type: infer_type(v),
+                            seen_count: 1,
+                            total_count: 1,
+                            nullable: v.is_null(),
+                        },
+                    )
+                })
+                .collect(),
         ),
-        Value::Array(a)   => FieldType::Array(Box::new(
-            a.first().map(infer_type).unwrap_or(FieldType::Null)
+        Value::Array(a) => FieldType::Array(Box::new(
+            a.first().map(infer_type).unwrap_or(FieldType::Null),
         )),
     }
 }

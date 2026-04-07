@@ -1,6 +1,6 @@
+use crate::scorer::BehavioralDivergenceScore;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
-use crate::scorer::BehavioralDivergenceScore;
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub enum DriftState {
@@ -48,21 +48,30 @@ impl StateMachine {
         }
     }
 
-    pub fn update(&mut self, endpoint: &str, score: &BehavioralDivergenceScore) -> Option<StateTransition> {
+    pub fn update(
+        &mut self,
+        endpoint: &str,
+        score: &BehavioralDivergenceScore,
+    ) -> Option<StateTransition> {
         if score.sample_count < self.min_samples {
-            self.records.entry(endpoint.to_string()).or_insert_with(|| StateRecord {
-                state: DriftState::Unknown,
-                entered_at: Instant::now(),
-                threshold_crossed_at: None,
-            });
+            self.records
+                .entry(endpoint.to_string())
+                .or_insert_with(|| StateRecord {
+                    state: DriftState::Unknown,
+                    entered_at: Instant::now(),
+                    threshold_crossed_at: None,
+                });
             return None;
         }
 
-        let record = self.records.entry(endpoint.to_string()).or_insert_with(|| StateRecord {
-            state: DriftState::Equivalent,
-            entered_at: Instant::now(),
-            threshold_crossed_at: None,
-        });
+        let record = self
+            .records
+            .entry(endpoint.to_string())
+            .or_insert_with(|| StateRecord {
+                state: DriftState::Equivalent,
+                entered_at: Instant::now(),
+                threshold_crossed_at: None,
+            });
 
         let target_state = if score.score >= self.diverged_threshold {
             DriftState::Diverged

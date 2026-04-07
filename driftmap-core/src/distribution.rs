@@ -2,15 +2,15 @@ use crate::matcher::Target;
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 struct Centroid {
-    mean:  f64,
+    mean: f64,
     count: u32,
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct StreamingQuantileEstimator {
     centroids: Vec<Centroid>,
-    count:     u64,
-    max_size:  usize,
+    count: u64,
+    max_size: usize,
 }
 
 impl Default for StreamingQuantileEstimator {
@@ -21,25 +21,39 @@ impl Default for StreamingQuantileEstimator {
 
 impl StreamingQuantileEstimator {
     pub fn new() -> Self {
-        Self { centroids: Vec::new(), count: 0, max_size: 200 }
+        Self {
+            centroids: Vec::new(),
+            count: 0,
+            max_size: 200,
+        }
     }
 
     pub fn add(&mut self, value: f64) {
         self.count += 1;
         let pos = self.centroids.partition_point(|c| c.mean < value);
-        self.centroids.insert(pos, Centroid { mean: value, count: 1 });
+        self.centroids.insert(
+            pos,
+            Centroid {
+                mean: value,
+                count: 1,
+            },
+        );
         if self.centroids.len() > self.max_size * 2 {
             self.compress();
         }
     }
 
     pub fn quantile(&self, q: f64) -> f64 {
-        if self.centroids.is_empty() { return 0.0; }
+        if self.centroids.is_empty() {
+            return 0.0;
+        }
         let target = q * self.count as f64;
         let mut seen = 0.0_f64;
         for c in &self.centroids {
             seen += c.count as f64;
-            if seen >= target { return c.mean; }
+            if seen >= target {
+                return c.mean;
+            }
         }
         self.centroids.last().unwrap().mean
     }
@@ -49,7 +63,8 @@ impl StreamingQuantileEstimator {
         let total = self.count as f64;
 
         // Sort by mean before merging
-        self.centroids.sort_by(|a, b| a.mean.partial_cmp(&b.mean).unwrap());
+        self.centroids
+            .sort_by(|a, b| a.mean.partial_cmp(&b.mean).unwrap());
 
         for c in self.centroids.drain(..) {
             let merged_len = merged.len();
@@ -58,7 +73,7 @@ impl StreamingQuantileEstimator {
                 // t-digest scaling function for bounded size
                 let k = merged_len as f64 / self.max_size as f64;
                 let limit = 4.0 * total * k * (1.0 - k);
-                
+
                 if combined_count as f64 <= limit {
                     last.mean = (last.mean * last.count as f64 + c.mean * c.count as f64)
                         / combined_count as f64;
@@ -99,7 +114,9 @@ impl FieldDistribution {
     }
 
     pub fn divergence_score(&self) -> f32 {
-        if self.digest_a.count < 10 || self.digest_b.count < 10 { return 0.0; }
+        if self.digest_a.count < 10 || self.digest_b.count < 10 {
+            return 0.0;
+        }
 
         let p95_a = self.digest_a.quantile(0.95);
         let p95_b = self.digest_b.quantile(0.95);

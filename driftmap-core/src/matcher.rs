@@ -1,7 +1,7 @@
+use crate::http::{HttpRequest, HttpResponse};
 use std::collections::{HashMap, VecDeque};
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
-use crate::http::{HttpRequest, HttpResponse};
 
 #[derive(Debug, Clone, Eq, Hash, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Target {
@@ -46,7 +46,12 @@ impl Matcher {
         }
     }
 
-    pub fn process_incoming_payload(&mut self, target: Target, req: HttpRequest, res: HttpResponse) {
+    pub fn process_incoming_payload(
+        &mut self,
+        target: Target,
+        req: HttpRequest,
+        res: HttpResponse,
+    ) {
         let key = format!("{} {}", req.method, req.path_template);
 
         let (my_pending, their_pending) = match target {
@@ -87,26 +92,32 @@ impl Matcher {
         }
 
         // No match found, add to pending
-        let queue = my_pending
-            .entry(key)
-            .or_insert_with(VecDeque::new);
-            
+        let queue = my_pending.entry(key).or_insert_with(VecDeque::new);
+
         // HashDoS Prevention: Cap pending queue at 100 requests per endpoint
         if queue.len() >= 100 {
             queue.pop_front();
         }
         queue.push_back(PendingRequest {
-                request: req,
-                response: res,
-                arrived_at: Instant::now(),
-                captured_at: Instant::now(),
-            });
+            request: req,
+            response: res,
+            arrived_at: Instant::now(),
+            captured_at: Instant::now(),
+        });
     }
 
     pub fn collect_stale_connections(&mut self) {
         let cutoff = self.window;
-        for queue in self.pending_a.values_mut().chain(self.pending_b.values_mut()) {
-            while queue.front().map(|p| p.arrived_at.elapsed() > cutoff).unwrap_or(false) {
+        for queue in self
+            .pending_a
+            .values_mut()
+            .chain(self.pending_b.values_mut())
+        {
+            while queue
+                .front()
+                .map(|p| p.arrived_at.elapsed() > cutoff)
+                .unwrap_or(false)
+            {
                 queue.pop_front();
             }
         }

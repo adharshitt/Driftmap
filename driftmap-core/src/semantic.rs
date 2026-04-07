@@ -8,7 +8,9 @@ pub struct SemanticNormalizer {
 impl SemanticNormalizer {
     pub fn new(ignore_fields: Vec<String>) -> Self {
         let mut set = HashSet::new();
-        for f in ignore_fields { set.insert(f); }
+        for f in ignore_fields {
+            set.insert(f);
+        }
         // Default ignored fields
         set.insert("id".to_string());
         set.insert("request_id".to_string());
@@ -33,15 +35,17 @@ impl SemanticNormalizer {
             Value::Object(map) => {
                 // 1. Remove ignored fields
                 map.retain(|k, v| {
-                    if self.ignore_fields.contains(k) { return false; }
-                    
+                    if self.ignore_fields.contains(k) {
+                        return false;
+                    }
+
                     // Task 30: Auto-detect and ignore timestamps
                     if let Value::String(s) = v {
                         // Very simple ISO-8601 heuristic: YYYY-MM-DDTHH:MM:SS
                         if s.len() >= 19 && s.contains('-') && s.contains('T') && s.contains(':') {
                             return false;
                         }
-                        
+
                         // Task 38: Auto-detect and ignore UUIDs
                         // Simple heuristic: 8-4-4-4-12 pattern
                         if s.len() == 36 && s.chars().filter(|&c| c == '-').count() == 4 {
@@ -50,7 +54,7 @@ impl SemanticNormalizer {
                     }
                     true
                 });
-                
+
                 // 2. Recurse
                 for v in map.values_mut() {
                     self.normalize_value(v);
@@ -60,13 +64,14 @@ impl SemanticNormalizer {
                 for v in arr.iter_mut() {
                     self.normalize_value(v);
                 }
-                
+
                 // Task 33: Sort arrays of primitives to ignore order drift
                 // Only sort if all elements are primitives (strings, numbers, booleans)
-                if arr.iter().all(|v| v.is_string() || v.is_number() || v.is_boolean()) {
-                    arr.sort_by(|a, b| {
-                        a.to_string().cmp(&b.to_string())
-                    });
+                if arr
+                    .iter()
+                    .all(|v| v.is_string() || v.is_number() || v.is_boolean())
+                {
+                    arr.sort_by(|a, b| a.to_string().cmp(&b.to_string()));
                 }
             }
             _ => {}

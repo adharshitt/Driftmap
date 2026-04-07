@@ -9,7 +9,7 @@ use aya_ebpf::{
 };
 use driftmap_probe_common::NetworkPacketEvent;
 use network_types::{
-    eth::{EtherType, EthHdr},
+    eth::{EthHdr, EtherType},
     ip::{IpProto, Ipv4Hdr},
     tcp::TcpHdr,
 };
@@ -66,7 +66,9 @@ fn evaluate_network_packet(ctx: TcContext) -> Result<i32, ()> {
     };
 
     let payload_offset = tcp_offset + (unsafe { (*tcp_hdr).doff() as usize } * 4);
-    let payload_len = (ctx.len() as usize).saturating_sub(payload_offset).min(9000);
+    let payload_len = (ctx.len() as usize)
+        .saturating_sub(payload_offset)
+        .min(9000);
 
     // FIN = 0x001, RST = 0x004
     let is_term = (tcp_flags & 0x001) != 0 || (tcp_flags & 0x004) != 0;
@@ -87,7 +89,10 @@ fn evaluate_network_packet(ctx: TcContext) -> Result<i32, ()> {
             (*ev).tcp_flags = tcp_flags;
             (*ev).payload_len = payload_len as u16;
             if payload_len > 0 {
-                if ctx.load_bytes(payload_offset, &mut (&mut (*ev).payload)[..payload_len]).is_err() {
+                if ctx
+                    .load_bytes(payload_offset, &mut (&mut (*ev).payload)[..payload_len])
+                    .is_err()
+                {
                     event.discard(0);
                     return Ok(TC_ACT_OK);
                 }

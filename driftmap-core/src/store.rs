@@ -1,5 +1,5 @@
-use rusqlite::{Connection, params};
 use crate::state::DriftState;
+use rusqlite::{params, Connection};
 
 pub struct Store {
     conn: Connection,
@@ -21,7 +21,8 @@ pub struct DivergingPairRecord {
 impl Store {
     pub fn open(path: &str) -> anyhow::Result<Self> {
         let conn = Connection::open(path)?;
-        conn.execute_batch("
+        conn.execute_batch(
+            "
             PRAGMA journal_mode=WAL;
             PRAGMA synchronous=NORMAL;
 
@@ -52,7 +53,8 @@ impl Store {
             );
             CREATE INDEX IF NOT EXISTS idx_pairs_endpoint
                 ON diverging_pairs(endpoint, recorded_at DESC);
-        ")?;
+        ",
+        )?;
         Ok(Self { conn })
     }
 
@@ -82,7 +84,11 @@ impl Store {
         }
     }
 
-    pub fn recent_pairs(&self, endpoint: &str, limit: usize) -> anyhow::Result<Vec<DivergingPairRecord>> {
+    pub fn recent_pairs(
+        &self,
+        endpoint: &str,
+        limit: usize,
+    ) -> anyhow::Result<Vec<DivergingPairRecord>> {
         let mut stmt = self.conn.prepare(
             "SELECT id, endpoint, req_method, req_path, status_a, status_b, body_a, body_b, recorded_at 
              FROM diverging_pairs 
@@ -112,7 +118,7 @@ impl Store {
             DriftState::Drifting => "Drifting",
             DriftState::Diverged => "Diverged",
         };
-        
+
         self.conn.execute(
             "INSERT OR REPLACE INTO endpoint_state (endpoint, state, updated_at)
              VALUES (?1, ?2, strftime('%s','now'))",
@@ -127,7 +133,7 @@ impl Store {
              VALUES (?1, ?2, strftime('%s','now'))",
             params![endpoint, score],
         )?;
-        
+
         // Prune old scores (keep last 24h)
         self.conn.execute(
             "DELETE FROM drift_scores
@@ -163,7 +169,7 @@ impl Store {
         let mut stmt = self.conn.prepare(
             "SELECT recorded_at, score FROM drift_scores
              WHERE endpoint = ?1
-             ORDER BY recorded_at DESC LIMIT ?2"
+             ORDER BY recorded_at DESC LIMIT ?2",
         )?;
         let rows = stmt.query_map(params![endpoint, limit as i64], |row| {
             Ok((row.get::<_, i64>(0)?, row.get::<_, f32>(1)?))

@@ -1,15 +1,15 @@
-use std::collections::{HashMap, BTreeMap};
-use tokio::sync::mpsc;
-use std::time::{SystemTime, UNIX_EPOCH, Instant};
-use driftmap_probe_common::NetworkPacketEvent;
 use crate::http::{parse_http_message, HttpMessage};
+use driftmap_probe_common::NetworkPacketEvent;
+use std::collections::{BTreeMap, HashMap};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use tokio::sync::mpsc;
 
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
 pub struct StreamKey {
-    pub src_ip:      [u8; 4],
-    pub dst_ip:      [u8; 4],
-    pub src_port:    u16,
-    pub dst_port:    u16,
+    pub src_ip: [u8; 4],
+    pub dst_ip: [u8; 4],
+    pub src_port: u16,
+    pub dst_port: u16,
 }
 
 pub struct TrafficCaptureBuffer {
@@ -48,13 +48,16 @@ impl Reassembler {
             .map(|d| d.as_millis() as u64)
             .unwrap_or(0);
 
-        let buf = self.streams.entry(key.clone()).or_insert(TrafficCaptureBuffer {
-            segments: BTreeMap::new(),
-            next_seq: 0,
-            data: Vec::with_capacity(4096),
-            captured_at: Instant::now(),
-            last_seen_ms: now,
-        });
+        let buf = self
+            .streams
+            .entry(key.clone())
+            .or_insert(TrafficCaptureBuffer {
+                segments: BTreeMap::new(),
+                next_seq: 0,
+                data: Vec::with_capacity(4096),
+                captured_at: Instant::now(),
+                last_seen_ms: now,
+            });
 
         // Initialize next_seq on first packet
         if buf.next_seq == 0 {
@@ -68,7 +71,10 @@ impl Reassembler {
                 return;
             }
             // Store segment
-            buf.segments.insert(event.seq, event.payload[..event.payload_len as usize].to_vec());
+            buf.segments.insert(
+                event.seq,
+                event.payload[..event.payload_len as usize].to_vec(),
+            );
         }
 
         // Reassemble contiguous segments
@@ -86,7 +92,9 @@ impl Reassembler {
                 let _ = self.tx.try_send((key.clone(), parsed));
             }
             buf.data.drain(..consumed);
-            if buf.data.is_empty() { break; }
+            if buf.data.is_empty() {
+                break;
+            }
         }
 
         // Task 13: Instant Pruning on FIN/RST
@@ -121,19 +129,22 @@ fn try_extract_message(data: &[u8]) -> Option<usize> {
         }
     }?;
 
-    let content_length = headers.iter()
+    let content_length = headers
+        .iter()
         .take_while(|h| !h.name.is_empty())
         .find(|h| h.name.to_lowercase() == "content-length")
         .and_then(|h| std::str::from_utf8(h.value).ok())
         .and_then(|v| v.parse::<usize>().ok());
 
-    let encoding = headers.iter()
+    let encoding = headers
+        .iter()
         .take_while(|h| !h.name.is_empty())
         .find(|h| h.name.to_lowercase() == "content-encoding")
         .and_then(|h| std::str::from_utf8(h.value).ok())
         .map(|v| v.to_lowercase());
 
-    let content_type = headers.iter()
+    let content_type = headers
+        .iter()
         .take_while(|h| !h.name.is_empty())
         .find(|h| h.name.to_lowercase() == "content-type")
         .and_then(|h| std::str::from_utf8(h.value).ok())
@@ -151,7 +162,8 @@ fn try_extract_message(data: &[u8]) -> Option<usize> {
         }
     }
 
-    let is_chunked = headers.iter()
+    let is_chunked = headers
+        .iter()
         .take_while(|h| !h.name.is_empty())
         .find(|h| h.name.to_lowercase() == "transfer-encoding")
         .and_then(|h| std::str::from_utf8(h.value).ok())
@@ -173,8 +185,6 @@ fn try_extract_message(data: &[u8]) -> Option<usize> {
             }
             Some(total_len)
         }
-        None => {
-            Some(header_len)
-        }
+        None => Some(header_len),
     }
 }

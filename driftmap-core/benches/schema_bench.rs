@@ -1,6 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use driftmap_core::schema::SchemaInferrer;
 use driftmap_core::matcher::Target;
+use driftmap_core::schema::SchemaInferrer;
 
 fn bench_schema_inferrer(c: &mut Criterion) {
     let mut inferrer = SchemaInferrer::new();
