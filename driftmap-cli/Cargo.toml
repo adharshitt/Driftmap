@@ -3,6 +3,10 @@ name = "driftmap-cli"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "driftmap"
+path = "src/main.rs"
+
 [dependencies]
 driftmap-tui = { path = "../driftmap-tui" }
 driftmap-core = { path = "../driftmap-core" }
