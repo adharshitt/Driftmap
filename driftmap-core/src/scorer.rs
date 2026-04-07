@@ -1,7 +1,21 @@
 use std::collections::{HashMap, VecDeque};
 use crate::diff::RawProtocolDivergence;
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
+pub struct SystemHealth {
+    pub packets_per_sec: u64,
+    pub buffer_utilization: f32,
+    pub active_streams: usize,
+    pub dropped_packets: u64,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct DashboardUpdate {
+    pub scores: Vec<BehavioralDivergenceScore>,
+    pub health: SystemHealth,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct BehavioralDivergenceScore {
     pub endpoint:      String,
     pub score:         f32,
@@ -21,15 +35,31 @@ pub struct Scorer {
     window_size:   usize,
 }
 
+impl Default for Scorer {
+    fn default() -> Self {
+        Self::new(vec![])
+    }
+}
+
 impl Scorer {
-    pub fn new() -> Self {
+    pub fn new(ignore_fields: Vec<String>) -> Self {
         Self {
-            normalizer: crate::semantic::SemanticNormalizer::new(vec![]),
+            normalizer: crate::semantic::SemanticNormalizer::new(ignore_fields),
             schema_inferrer: crate::schema::SchemaInferrer::new(),
             distribution: crate::distribution::FieldDistribution::new(),
-            recent_diffs: std::collections::HashMap::new(),
-            window_size: 1000,
+            recent_diffs: HashMap::new(),
+            window_size:   100,
         }
+    }
+
+    pub fn score_pair(&mut self, _endpoint: &str, status_a: u16, status_b: u16, body_a: &[u8], body_b: &[u8]) -> f32 {
+        let norm_a = self.normalizer.normalize(body_a).unwrap_or_else(|| body_a.to_vec());
+        let norm_b = self.normalizer.normalize(body_b).unwrap_or_else(|| body_b.to_vec());
+
+        let status_score: f32 = if status_a != status_b { 0.5 } else { 0.0 };
+        let body_score: f32 = if norm_a != norm_b { 0.5 } else { 0.0 };
+
+        (status_score + body_score).min(1.0)
     }
 
     pub fn ingest_diff(&mut self, diff: RawProtocolDivergence) {
@@ -50,8 +80,6 @@ impl Scorer {
         let count = diffs.len() as f32;
         let status_score = diffs.iter().filter(|d| !d.status_match).count() as f32 / count;
         
-        // Phase 2: Schema and Latency scores will be integrated here. 
-        // For Phase 1 MVP, we use status and headers.
         let schema_score = if self.schema_inferrer.diff(endpoint).is_some() { 1.0 } else { 0.0 };
         let latency_score = (diffs.iter().map(|d| d.latency_delta_us.abs()).sum::<i64>() as f32 / count / 100000.0).min(1.0);
 

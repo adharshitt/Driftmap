@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DriftMap | History</title>
+  <style>
+    :root { --bg: #0d1117; --panel: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --danger: #f85149; }
+    body { font-family: system-ui; background: var(--bg); color: var(--text); margin: 0; }
+    nav { display: flex; gap: 2rem; padding: 1.5rem 2rem; border-bottom: 1px solid var(--border); background: var(--panel); }
+    nav a { color: var(--text); text-decoration: none; opacity: 0.7; transition: 0.2s; }
+    nav a:hover { opacity: 1; color: var(--accent); }
+    .container { padding: 2rem; max-width: 1200px; margin: 0 auto; }
+    .history-item { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 1rem; padding: 1rem; }
+    .meta { display: flex; justify-content: space-between; font-family: monospace; color: var(--accent); margin-bottom: 0.5rem; }
+    .diff-box { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; background: var(--bg); padding: 1rem; border-radius: 4px; border: 1px solid var(--border); }
+    pre { margin: 0; font-size: 0.85rem; overflow-x: auto; color: #e6edf3; }
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="/">Home</a>
+    <a href="/live">Live Dashboard</a>
+    <a href="/history">History</a>
+    <a href="/onboarding">Onboarding</a>
+  </nav>
+  <div class="container">
+    <h1>Analysis History</h1>
+    <div id="history-list">Loading historical data from Edge KV...</div>
+  </div>
+  <script>
+    async function loadHistory() {
+      try {
+        const res = await fetch('/api/drift');
+        const data = await res.json();
+        const container = document.getElementById('history-list');
+        if (data.length === 0) {
+          container.innerHTML = '<p style="color: #8b949e">No historical drifts found.</p>';
+          return;
+        }
+        container.innerHTML = '';
+        data.forEach(item => {
+          const el = document.createElement('div');
+          el.className = 'history-item';
+          const time = item.timestamp ? new Date(item.timestamp).toLocaleString() : 'Recent';
+          el.innerHTML = `
+            <div class="meta">
+              <span>${item.endpoint || 'Unknown Event'}</span>
+              <span>${time}</span>
+            </div>
+            <div class="diff-box">
+              <pre>${JSON.stringify(item.body_a, null, 2)}</pre>
+              <pre style="color: var(--danger)">${JSON.stringify(item.body_b, null, 2)}</pre>
+            </div>
+          `;
+          container.appendChild(el);
+        });
+      } catch (e) {
+        document.getElementById('history-list').textContent = 'Error loading history: ' + e.message;
+      }
+    }
+    loadHistory();
+  </script>
+</body>
+</html>

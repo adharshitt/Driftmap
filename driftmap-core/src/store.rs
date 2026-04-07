@@ -5,7 +5,6 @@ pub struct Store {
     conn: Connection,
 }
 
-
 #[derive(Debug)]
 pub struct DivergingPairRecord {
     pub id: i64,
@@ -20,29 +19,6 @@ pub struct DivergingPairRecord {
 }
 
 impl Store {
-    pub fn recent_pairs(&self, endpoint: &str, limit: usize) -> anyhow::Result<Vec<DivergingPairRecord>> {
-        let mut stmt = self.conn.prepare(
-            "SELECT id, endpoint, req_method, req_path, status_a, status_b, body_a, body_b, recorded_at 
-             FROM diverging_pairs 
-             WHERE endpoint = ?1 
-             ORDER BY recorded_at DESC LIMIT ?2"
-        )?;
-        let rows = stmt.query_map(rusqlite::params![endpoint, limit as i64], |row| {
-            Ok(DivergingPairRecord {
-                id: row.get(0)?,
-                endpoint: row.get(1)?,
-                req_method: row.get(2)?,
-                req_path: row.get(3)?,
-                status_a: row.get::<_, i64>(4)? as u16,
-                status_b: row.get::<_, i64>(5)? as u16,
-                body_a: row.get(6)?,
-                body_b: row.get(7)?,
-                recorded_at: row.get(8)?,
-            })
-        })?;
-        rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
-    }
-
     pub fn open(path: &str) -> anyhow::Result<Self> {
         let conn = Connection::open(path)?;
         conn.execute_batch("
@@ -80,6 +56,55 @@ impl Store {
         Ok(Self { conn })
     }
 
+    pub fn get_pair_by_id(&self, id: i64) -> anyhow::Result<Option<DivergingPairRecord>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, endpoint, req_method, req_path, status_a, status_b, body_a, body_b, recorded_at 
+             FROM diverging_pairs WHERE id = ?1"
+        )?;
+        let mut rows = stmt.query_map(rusqlite::params![id], |row| {
+            Ok(DivergingPairRecord {
+                id: row.get(0)?,
+                endpoint: row.get(1)?,
+                req_method: row.get(2)?,
+                req_path: row.get(3)?,
+                status_a: row.get::<_, i64>(4)? as u16,
+                status_b: row.get::<_, i64>(5)? as u16,
+                body_a: row.get(6)?,
+                body_b: row.get(7)?,
+                recorded_at: row.get(8)?,
+            })
+        })?;
+
+        if let Some(res) = rows.next() {
+            Ok(Some(res?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn recent_pairs(&self, endpoint: &str, limit: usize) -> anyhow::Result<Vec<DivergingPairRecord>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, endpoint, req_method, req_path, status_a, status_b, body_a, body_b, recorded_at 
+             FROM diverging_pairs 
+             WHERE endpoint = ?1 
+             ORDER BY recorded_at DESC LIMIT ?2"
+        )?;
+        let rows = stmt.query_map(rusqlite::params![endpoint, limit as i64], |row| {
+            Ok(DivergingPairRecord {
+                id: row.get(0)?,
+                endpoint: row.get(1)?,
+                req_method: row.get(2)?,
+                req_path: row.get(3)?,
+                status_a: row.get::<_, i64>(4)? as u16,
+                status_b: row.get::<_, i64>(5)? as u16,
+                body_a: row.get(6)?,
+                body_b: row.get(7)?,
+                recorded_at: row.get(8)?,
+            })
+        })?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+    }
+
     pub fn save_state(&self, endpoint: &str, state: &DriftState) -> anyhow::Result<()> {
         let state_str = match state {
             DriftState::Unknown => "Unknown",
@@ -109,6 +134,27 @@ impl Store {
              WHERE endpoint = ?1
                AND recorded_at < strftime('%s','now') - 86400",
             params![endpoint],
+        )?;
+        Ok(())
+    }
+
+    pub fn save_diverging_pair(&self, record: &DivergingPairRecord) -> anyhow::Result<()> {
+        self.conn.execute(
+            "INSERT INTO diverging_pairs (endpoint, req_method, req_path, status_a, status_b, body_a, body_b, recorded_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![record.endpoint, record.req_method, record.req_path, record.status_a, record.status_b, record.body_a, record.body_b, record.recorded_at],
+        )?;
+
+        // Prune old pairs (keep last 1000 per endpoint)
+        self.conn.execute(
+            "DELETE FROM diverging_pairs
+             WHERE endpoint = ?1
+               AND id NOT IN (
+                 SELECT id FROM diverging_pairs
+                 WHERE endpoint = ?1
+                 ORDER BY recorded_at DESC LIMIT 1000
+               )",
+            params![record.endpoint],
         )?;
         Ok(())
     }

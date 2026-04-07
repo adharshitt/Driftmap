@@ -1,0 +1,162 @@
+Here are 100 tasks organized by area:
+
+---
+
+**eBPF Probe (1-15)**
+1. Send 100k req/sec and check for ring buffer drops
+2. Test with jumbo frames (9000 byte MTU)
+3. Verify behavior when NIC uses RSS across multiple queues
+4. Test on kernel 5.15, 6.1, and 6.8 — eBPF verifier differences
+5. Send malformed TCP packets with bad checksums
+6. Test with TCP SACK (selective acknowledgment) enabled
+7. Simulate packet reordering and verify stream reassembly
+8. Test with IP fragmentation enabled
+9. Verify probe attaches correctly to loopback (lo) vs ethernet
+10. Test hot-reload of probe while traffic is in-flight
+11. Send a 100MB response body and verify it doesn't OOM
+12. Test with TIME_WAIT connections that reuse port numbers
+13. Verify FIN/RST handling doesn't leave dangling stream state
+14. Test simultaneous connections from 10k clients
+15. Confirm zero packet drops at p99 under sustained 50k req/sec
+
+**HTTP Parsing (16-28)**
+16. Send chunked transfer-encoding responses
+17. Send HTTP/1.0 (no keep-alive) connections
+18. Test responses with no Content-Length and connection close
+19. Send gzip/brotli compressed bodies
+20. Test multipart/form-data request bodies
+21. Send 10MB+ request bodies (file uploads)
+22. Test pipelining — multiple requests on one TCP connection
+23. Send malformed HTTP headers (missing CRLF, bad status line)
+24. Test headers with duplicate keys (Set-Cookie)
+25. Send responses with 1xx interim status codes
+26. Test WebSocket upgrade requests — should be gracefully skipped
+27. Send requests with extremely long URLs (8192+ chars)
+28. Test binary response bodies (images, PDFs)
+
+**Semantic Diff Engine (29-42)**
+29. Compare identical JSON responses — score must be exactly 0.0%
+30. Compare responses where only a timestamp field differs — score must stay near 0%
+31. Add a nested field 5 levels deep — verify schema diff catches it
+32. Change a field type from string to number — verify type-shift detection
+33. Test array order changes — should this count as drift?
+34. Compare responses with null vs missing field
+35. Send a 10,000-key flat JSON object
+36. Test deeply nested JSON (50 levels)
+37. Send JSON arrays with 100k elements
+38. Verify UUID normalization strips all standard UUID formats
+39. Test custom normalization rules in driftmap.toml
+40. Verify p50/p95/p99 t-Digest accuracy against known distributions
+41. Test latency divergence detection when one target is 2x slower
+42. Verify score is stable (not flapping) for equivalent services
+
+**Proxy Mode (43-52)**
+43. Test proxy with TLS termination on both targets
+44. Verify proxy handles backpressure when target-b is slow
+45. Test proxy with target-a returning 500 errors consistently
+46. Send 10k concurrent connections through the proxy
+47. Verify proxy does not modify request bodies in transit
+48. Test proxy with IPv6 targets
+49. Verify correct handling when target-b goes offline mid-session
+50. Test proxy with Unix domain socket targets
+51. Measure proxy-added latency overhead (should be under 1ms p99)
+52. Verify proxy mode works without root/CAP_NET_ADMIN
+
+**SQLite & Persistence (53-60)**
+53. Verify WAL mode is actually enabled at runtime
+54. Run 1M drift events and check query performance on `driftmap diff`
+55. Test concurrent reads during high-write load
+56. Verify database is not corrupted on SIGKILL mid-write
+57. Check that old drift records are pruned or the DB doesn't grow unbounded
+58. Test replay of divergent pairs after restart
+59. Verify `driftmap diff` output matches what was actually captured
+60. Test database behavior on a full disk
+
+**WASM Plugin SDK (61-68)**
+61. Load a plugin that panics — verify host process survives
+62. Load a plugin that allocates 1GB of memory — verify sandbox limits
+63. Test plugin hot-reload while scoring is in-progress
+64. Write a gRPC scorer plugin and verify it loads correctly
+65. Test a plugin that returns a score outside 0.0-1.0 range
+66. Measure WASM plugin invocation overhead per request
+67. Test loading 10 plugins simultaneously
+68. Verify a malicious plugin cannot read host memory
+
+**TUI (69-75)**
+69. Test TUI with 10,000 endpoints in the list — check scroll performance
+70. Verify TUI renders correctly on 80x24 terminal (minimum size)
+71. Test TUI on macOS Terminal, iTerm2, tmux, and screen
+72. Verify sort by score, name, and requests all work correctly
+73. Test TUI behavior when SQLite is locked
+74. Verify TUI updates in real-time without flickering
+75. Test TUI with endpoint names longer than the panel width
+
+**CLI (76-82)**
+76. Run `driftmap init` twice — verify it doesn't overwrite without prompt
+77. Test `driftmap diff` with an endpoint that has no data yet
+78. Verify `--config` flag correctly overrides default path
+79. Test all CLI commands with missing required flags — verify clean errors
+80. Verify `driftmap help` output matches actual behavior
+81. Test `driftmap diff --last 0` and `--last 999999`
+82. Verify version output matches Cargo.toml version
+
+**Config & Hot-Reload (83-88)**
+83. Change target-a address in driftmap.toml while watching — verify reload
+84. Add a new normalization rule while running — verify it applies to new traffic only
+85. Write an invalid TOML and verify graceful error, not panic
+86. Test config reload race condition — reload during active packet processing
+87. Verify all config fields have sane defaults when omitted
+88. Test config with non-existent network interface name
+
+**Security (89-94)**
+89. Verify eBPF program passes kernel verifier with `--release` build
+90. Check for any `unsafe` blocks that could be exploited
+91. Verify WASM sandbox cannot make syscalls
+92. Test that captured payloads containing secrets are not logged to disk in plaintext
+93. Verify the Prometheus `/metrics` endpoint is not exposed publicly by default
+94. Test webhook receiver with a malicious payload (SSRF via redirect)
+
+**CI & Code Quality (95-100)**
+95. Run `cargo clippy -- -D warnings` and fix every warning
+96. Run `cargo audit` and resolve all known CVEs in dependencies
+97. Add `cargo deny` check for duplicate dependencies
+98. Measure binary size — should be under 20MB for the CLI
+99. Run `cargo test` and verify all tests pass on Linux and macOS
+100. Run the fuzz targets in `/fuzz` for 24 hours and fix any crashes
+
+---
+
+
+Here are features you can build specifically to verify the system works and prove its value:
+
+---
+
+**Live Health Indicators**
+Add a status bar in the TUI showing packets captured per second, ring buffer utilization %, and active TCP streams. If the number is 0, something is broken. Makes internals visible at a glance.
+
+**Self-Test Mode**
+`driftmap selftest` — spins up two tiny internal HTTP servers, sends 100 known requests, and verifies scores come back correct. Lets any user confirm the tool works before pointing it at real traffic. Critical for trust.
+
+**Drift Replay**
+`driftmap replay <session-id>` — re-runs a captured divergent pair through the scoring engine again. Useful for verifying a bug fix actually resolved the drift without needing live traffic.
+
+**Baseline Snapshot**
+`driftmap snapshot --save baseline` then `driftmap snapshot --compare baseline` — lets you capture a known-good state and diff against it later. Proves the system is tracking change over time, not just instantaneous state.
+
+**Divergence Alerts via CLI Exit Code**
+`driftmap watch --fail-above 5.0` — exits with a non-zero code if any endpoint exceeds 5% drift score. Makes Driftmap directly usable in CI/CD pipelines as a release gate.
+
+**Endpoint Summary Report**
+`driftmap report --format json` — dumps a machine-readable summary of all endpoint scores. Lets you pipe results into other tools, Slack bots, dashboards.
+
+**Request Sampling Inspector**
+`driftmap inspect --endpoint "POST /api/orders" --sample 10` — shows 10 actual request/response pairs that contributed to a drift score, side by side. The most important debugging feature — without it you know *that* something drifted but not *why*.
+
+**Score History Graph**
+In the TUI, show a sparkline of each endpoint's drift score over the last 60 minutes. A score that spikes and recovers tells a very different story than one that slowly climbs.
+
+**Normalization Dry Run**
+`driftmap normalize --test "your-json-here"` — shows exactly what the normalizer strips from a given JSON payload before scoring. Lets users verify their custom normalization rules actually work.
+
+**Equivalent Service Guarantee**
+Point Driftmap at the same service twice (target-a and target-b are identical). Score must be 0.0% across all endpoints. If it's not, the scoring engine has a bug. This is the most important correctness check you can ship.

@@ -7,13 +7,39 @@ use ratatui::{
 use crate::app::App;
 
 pub fn draw(f: &mut Frame, app: &App) {
-    let chunks = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
+    let main_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(3), Constraint::Length(3)])
         .split(f.size());
 
-    draw_endpoint_list(f, app, chunks[0]);
-    draw_endpoint_detail(f, app, chunks[1]);
+    let content_chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
+        .split(main_chunks[0]);
+
+    draw_endpoint_list(f, app, content_chunks[0]);
+    draw_endpoint_detail(f, app, content_chunks[1]);
+    draw_health_bar(f, app, main_chunks[1]);
+}
+
+fn draw_health_bar(f: &mut Frame, app: &App, area: Rect) {
+    let health = &app.health;
+    let text = format!(
+        " 📡 Packets/s: {} | 🔄 Buffer: {:.1}% | 💧 Dropped: {} | 🧵 Active Streams: {}",
+        health.packets_per_sec,
+        health.buffer_utilization * 100.0,
+        health.dropped_packets,
+        health.active_streams
+    );
+
+    let style = if health.dropped_packets > 0 {
+        Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(Color::Cyan)
+    };
+
+    let p = Paragraph::new(text).block(Block::default().borders(Borders::ALL).title(" System Health "));
+    f.render_widget(p.style(style), area);
 }
 
 fn score_to_color(score: f32) -> Color {

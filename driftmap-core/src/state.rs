@@ -31,6 +31,12 @@ pub struct StateMachine {
     min_samples: u64,
 }
 
+impl Default for StateMachine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl StateMachine {
     pub fn new() -> Self {
         Self {

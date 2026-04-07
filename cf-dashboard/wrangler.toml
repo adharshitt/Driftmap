@@ -6,3 +6,8 @@ pages_build_output_dir = "public"
 name = "BROADCASTER"
 class_name = "Broadcaster"
 script_name = "driftmap-sock"
+
+[[d1_databases]]
+binding = "driftmap_db"
+database_name = "driftmap-db"
+database_id = "c79a0086-dbcf-4a96-8363-95b487dcc04b"

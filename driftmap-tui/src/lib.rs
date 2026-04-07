@@ -11,7 +11,7 @@ use std::io::stdout;
 use std::time::Duration;
 use tokio::sync::watch;
 
-pub async fn launch_terminal_dashboard(score_rx: watch::Receiver<Vec<driftmap_core::scorer::BehavioralDivergenceScore>>) -> anyhow::Result<()> {
+pub async fn launch_terminal_dashboard(score_rx: watch::Receiver<driftmap_core::scorer::DashboardUpdate>) -> anyhow::Result<()> {
     enable_raw_mode()?;
     let mut stdout = stdout();
     execute!(stdout, EnterAlternateScreen)?;
@@ -25,7 +25,10 @@ pub async fn launch_terminal_dashboard(score_rx: watch::Receiver<Vec<driftmap_co
         tick_rate.tick().await;
 
         if app.score_rx.has_changed()? {
-            app.scores = app.score_rx.borrow_and_update().clone();
+            let update = app.score_rx.borrow_and_update().clone();
+            app.scores = update.scores;
+            app.health = update.health;
+            
             app.scores.sort_by(|a, b| match app.sort_by {
                 app::SortMode::ByScore => b.score.partial_cmp(&a.score).unwrap(),
                 app::SortMode::ByName => a.endpoint.cmp(&b.endpoint),

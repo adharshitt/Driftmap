@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DriftMap | Live Analyzer</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --panel: #161b22;
+      --text: #c9d1d9;
+      --accent: #58a6ff;
+      --success: #2ea043;
+      --danger: #f85149;
+      --border: #30363d;
+    }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      margin: 0;
+    }
+    nav { display: flex; gap: 2rem; padding: 1.5rem 2rem; border-bottom: 1px solid var(--border); background: var(--panel); }
+    nav a { color: var(--text); text-decoration: none; opacity: 0.7; transition: 0.2s; }
+    nav a:hover { opacity: 1; color: var(--accent); }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 2rem;
+    }
+    h1 { margin: 0; font-size: 1.8rem; font-weight: 600; }
+    .status-badge {
+      background: var(--success);
+      color: #fff;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 0.9rem;
+      font-weight: bold;
+    }
+    .status-badge.error { background: var(--danger); }
+    
+    .setup-panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin: 0 2rem 2rem 2rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: center;
+    }
+    input, select, button {
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      font-size: 1rem;
+    }
+    button {
+      background: var(--success);
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    button:disabled { background: var(--border); cursor: not-allowed; color: #8b949e; }
+    
+    .main-grid {
+      display: grid;
+      grid-template-columns: 350px 1fr;
+      gap: 1.5rem;
+      padding: 0 2rem 2rem 2rem;
+    }
+    
+    .logs-panel {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      height: 600px;
+      overflow-y: auto;
+      font-family: 'Consolas', monospace;
+      font-size: 0.85rem;
+    }
+    .log-entry { margin-bottom: 0.4rem; color: #8b949e; }
+    .log-entry.highlight { color: var(--accent); }
+    
+    .drifts-panel {
+      display: grid;
+      gap: 1.5rem;
+      align-content: start;
+    }
+    
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .card-header {
+      background: rgba(255,255,255,0.02);
+      border-bottom: 1px solid var(--border);
+      padding: 1rem;
+      font-family: monospace;
+      font-weight: bold;
+      color: var(--accent);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .uuid-badge {
+      background: rgba(88, 166, 255, 0.1);
+      color: var(--accent);
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 0.85rem;
+      font-family: 'Consolas', monospace;
+      border: 1px solid rgba(88, 166, 255, 0.3);
+    }
+    .card-body {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      background: var(--border);
+    }
+    .col {
+      background: var(--panel);
+      padding: 1rem;
+      overflow-x: auto;
+    }
+    .col-title {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #8b949e;
+      margin-bottom: 0.5rem;
+    }
+    pre {
+      margin: 0;
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 0.9rem;
+      color: #e6edf3;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <a href="/">Home</a>
+    <a href="/live">Live Dashboard</a>
+    <a href="/history">History</a>
+    <a href="/onboarding">Onboarding</a>
+  </nav>
+
+  <header>
+    <h1>🗺️ DriftMap Automated Analyzer</h1>
+    <div id="status" class="status-badge error">🔴 Disconnected</div>
+  </header>
+
+  <div class="setup-panel">
+    <input type="text" id="repoInput" placeholder="Enter GitHub repo" style="flex: 1; min-width: 250px;">
+    <input type="password" id="tokenInput" placeholder="GitHub Token" style="width: 150px;">
+    <button id="loadBtn" onclick="loadTags()">Fetch Versions</button>
+    <select id="vA" disabled><option>Target A</option></select>
+    <select id="vB" disabled><option>Target B</option></select>
+    <button id="startBtn" onclick="startAnalysis()" disabled>🚀 Start Analysis</button>
+  </div>
+
+  <div class="main-grid">
+    <div class="logs-panel" id="logs">
+      <div class="log-entry">Waiting for analysis to start...</div>
+    </div>
+    <div class="drifts-panel" id="drifts-container"></div>
+  </div>
+
+  <script>
+    const logsContainer = document.getElementById('logs');
+    const driftsContainer = document.getElementById('drifts-container');
+    const statusBadge = document.getElementById('status');
+    const repoInput = document.getElementById('repoInput');
+    const vASelect = document.getElementById('vA');
+    const vBSelect = document.getElementById('vB');
+    const tokenInput = document.getElementById('tokenInput');
+    const startBtn = document.getElementById('startBtn');
+
+    let socket;
+
+    function connect() {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      socket = new WebSocket(`${protocol}//${window.location.host}/ws`);
+
+      socket.onopen = () => {
+        statusBadge.textContent = '🟢 WebSocket Live';
+        statusBadge.className = 'status-badge';
+      };
+
+      socket.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type === 'log') {
+            addLog(msg.text, msg.text.includes('[') ? 'highlight' : '');
+          } else if (msg.type === 'drift') {
+            addDriftCard(msg.payload);
+          }
+        } catch(e) {}
+      };
+
+      socket.onclose = () => {
+        statusBadge.textContent = '🔴 Connection Lost';
+        statusBadge.className = 'status-badge error';
+        setTimeout(connect, 3000);
+      };
+    }
+
+    function addLog(text, className = '') {
+      const el = document.createElement('div');
+      el.className = `log-entry ${className}`;
+      el.textContent = `> ${text}`;
+      logsContainer.appendChild(el);
+      logsContainer.scrollTop = logsContainer.scrollHeight;
+    }
+
+    async function loadTags() {
+      let repo = repoInput.value.trim();
+      let token = tokenInput.value.trim();
+      repo = repo.replace('https://github.com/', '').replace(/\/$/, '');
+      if (!repo || !repo.includes('/')) return alert('Invalid repo');
+      
+      repoInput.value = repo; 
+      addLog(`Fetching versions for ${repo}...`);
+      
+      const headers = { 'User-Agent': 'DriftMap-Edge-Worker' };
+      if (token) headers['Authorization'] = `token ${token}`;
+
+      try {
+        const [tagsRes, branchesRes] = await Promise.all([
+          fetch(`https://api.github.com/repos/${repo}/tags`, { headers }),
+          fetch(`https://api.github.com/repos/${repo}/branches`, { headers })
+        ]);
+
+        const tags = await tagsRes.json();
+        const branches = await branchesRes.json();
+        
+        vASelect.innerHTML = '';
+        vBSelect.innerHTML = '';
+        
+        const options = [
+          ...branches.map(b => ({ name: b.name, type: 'branch' })),
+          ...tags.map(t => ({ name: t.name, type: 'tag' }))
+        ];
+
+        options.forEach(opt => {
+          vASelect.add(new Option(`${opt.name} (${opt.type})`, opt.name));
+          vBSelect.add(new Option(`${opt.name} (${opt.type})`, opt.name));
+        });
+        
+        vASelect.disabled = vBSelect.disabled = startBtn.disabled = false;
+        addLog(`Loaded ${options.length} versions.`);
+      } catch (err) {
+        addLog(`Error: ${err.message}`, 'error');
+      }
+    }
+
+    function startAnalysis() {
+      driftsContainer.innerHTML = '';
+      logsContainer.innerHTML = '';
+      socket.send(JSON.stringify({
+        type: 'analyze',
+        repo: repoInput.value,
+        vA: vASelect.value,
+        vB: vBSelect.value,
+        token: tokenInput.value.trim()
+      }));
+    }
+
+    function addDriftCard(drift) {
+      const card = document.createElement('div');
+      card.className = 'card drift-card';
+      card.innerHTML = `
+        <div class="card-header">
+          <span>${drift.endpoint}</span>
+          <span class="uuid-badge">UUID: ${drift.uuid}</span>
+        </div>
+        <div class="card-body">
+          <div class="col">
+            <div class="col-title">Target A (${vASelect.value})</div>
+            <pre>${JSON.stringify(drift.body_a, null, 2)}</pre>
+          </div>
+          <div class="col">
+            <div class="col-title" style="color: var(--danger)">Target B (${vBSelect.value})</div>
+            <pre>${JSON.stringify(drift.body_b, null, 2)}</pre>
+          </div>
+        </div>
+      `;
+      driftsContainer.insertBefore(card, driftsContainer.firstChild);
+    }
+
+    connect();
+  </script>
+</body>
+</html>

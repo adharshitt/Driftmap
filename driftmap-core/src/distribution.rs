@@ -13,6 +13,12 @@ pub struct StreamingQuantileEstimator {
     max_size:  usize,
 }
 
+impl Default for StreamingQuantileEstimator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl StreamingQuantileEstimator {
     pub fn new() -> Self {
         Self { centroids: Vec::new(), count: 0, max_size: 200 }
@@ -69,6 +75,12 @@ impl StreamingQuantileEstimator {
 pub struct FieldDistribution {
     pub digest_a: StreamingQuantileEstimator,
     pub digest_b: StreamingQuantileEstimator,
+}
+
+impl Default for FieldDistribution {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl FieldDistribution {

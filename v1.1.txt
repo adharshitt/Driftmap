@@ -1,0 +1,173 @@
+Based on what Driftmap already does, here are the highest-value things to bring in the next update:
+
+---
+
+**The one that changes everything: Cloud Mode**
+
+Right now Driftmap requires kernel access (eBPF) or running the proxy yourself. A hosted version where you just do:
+
+```
+driftmap cloud --target-a https://api-v1.yourapp.com \
+               --target-b https://api-v2.yourapp.com
+```
+
+...and Driftmap handles the mirroring from its own infrastructure — no root, no proxy, no setup. This removes the single biggest adoption barrier. Most developers cannot run eBPF in their environment.
+
+---
+
+**HTTP/2 and gRPC support**
+
+Right now the eBPF probe works at L4 which means HTTP/2 multiplexing is not correctly reassembled. Adding proper H2 frame parsing unlocks a massive chunk of modern backend traffic. gRPC specifically is huge — every microservices shop uses it and has zero good tooling for behavioral diffing.
+
+---
+
+**Distributed Aggregation**
+
+If the service runs behind a load balancer with 10 nodes, each node sees different traffic. Right now there is no way to aggregate drift scores across instances. A central collector endpoint where each Driftmap agent ships its scores would make it actually usable at scale.
+
+---
+
+**GitHub Actions Integration**
+
+A first-class action:
+
+```yaml
+- uses: adharshitt/driftmap-action@v1
+  with:
+    target-a: https://staging.yourapp.com
+    target-b: https://canary.yourapp.com
+    fail-above: 3.0
+```
+
+Runs Driftmap as a release gate in CI. Blocks a deploy if behavioral drift exceeds threshold. This alone would drive most of the adoption.
+
+---
+
+**Web Dashboard**
+
+The `cf-dashboard` folder exists but feels disconnected. A proper web UI hosted on Cloudflare Pages that connects to a running Driftmap agent via WebSocket — showing live drift scores, endpoint tables, and score history graphs — makes the tool accessible to non-terminal users and makes it shareable with your team.
+
+---
+
+**Drift Annotations**
+
+When a drift is detected, let the user attach a note:
+
+```
+driftmap annotate "POST /api/orders" --note "known: added discount field in v2"
+```
+
+Acknowledged drifts stop showing as alerts. Teams need a way to say "we know about this, it's intentional" without turning off monitoring entirely.
+
+---
+
+**SDK / Library Mode**
+
+Expose `driftmap-core` as a library crate so developers can embed behavioral diffing directly into their integration test suites. Something like:
+
+```rust
+let result = DriftSession::new(target_a, target_b)
+    .run(requests)
+    .await?;
+assert!(result.max_score() < 0.05);
+```
+
+This opens up a completely different distribution channel — not just a CLI tool but a testing l
+
+
+
+How to integrate clpudflare for cloud setup 
+Yes, and your existing stack is already perfectly set up for it. Here is how each piece maps:
+
+---
+
+**Traffic Mirroring — Cloudflare Workers**
+
+Instead of eBPF, a Worker acts as the mirror proxy:
+
+```javascript
+export default {
+  async fetch(request, env) {
+    const reqA = request.clone()
+    const reqB = request.clone()
+
+    const [resA, resB] = await Promise.all([
+      fetch(env.TARGET_A, { ...reqA }),
+      fetch(env.TARGET_B, { ...reqB })
+    ])
+
+    // ship both responses to your scoring pipeline
+    await env.SCORING_QUEUE.send({ a: await resA.json(), b: await resB.json() })
+
+    return resA // return A as the canonical response
+  }
+}
+```
+
+Zero infra. Deploys globally. No root access needed.
+
+---
+
+**Scoring Pipeline — Durable Objects**
+
+Each endpoint (`POST /api/orders`) gets its own Durable Object that holds running drift scores, t-Digest state, and history. Persistent, consistent, and globally accessible.
+
+---
+
+**Storage**
+
+- **D1** — drift event history, endpoint metadata, annotations
+- **KV** — current live score per endpoint (fast reads for dashboard)
+- **R2** — raw request/response pair storage for replay
+
+---
+
+**Dashboard — Cloudflare Pages + Workers**
+
+Your `cf-dashboard` folder becomes a React + Vite app on Pages, talking to a Worker API that reads from D1 and KV. WebSocket via Durable Objects for live score updates.
+
+---
+
+**The full CF-native architecture**
+
+```
+User Traffic
+     |
+     v
+Cloudflare Worker (mirror proxy)
+     |
+     |--- fetch --> Target A (your v1)
+     |--- fetch --> Target B (your v2)
+     |
+     v
+Cloudflare Queue
+     |
+     v
+Durable Object (per endpoint scorer)
+     |
+     |--- D1 (history)
+     |--- KV (live scores)
+     |--- R2 (raw pairs)
+     |
+     v
+Pages Dashboard (live WebSocket updates)
+```
+
+---
+
+**What you lose vs eBPF mode**
+
+- No kernel-level capture — you have to route traffic through the Worker deliberately
+- Cold start latency on Workers adds a few ms to every mirrored request
+- Cannot capture traffic you do not control (third party services)
+
+---
+
+**What you gain**
+
+- Zero setup for end users — just change their DNS or set a Worker route
+- Global edge deployment out of the box
+- No Linux, no root, no sidecar
+- Fits perfectly with your existing CF stack on Void and other projects
+
+This is genuinely the strongest version of Driftmap's cloud story and you already know the entire stack. It is probably 2-3 weeks of focused work to have a working MVP.

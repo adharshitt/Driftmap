@@ -46,6 +46,12 @@ pub struct SchemaInferrer {
     pub min_samples: u32,
 }
 
+impl Default for SchemaInferrer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SchemaInferrer {
     pub fn new() -> Self {
         Self {
@@ -64,7 +70,7 @@ impl SchemaInferrer {
         *total += 1;
         let current_total = *total;
 
-        let schema = self.schemas.entry(key).or_insert_with(HashMap::new);
+        let schema = self.schemas.entry(key).or_default();
 
         for (field, val) in &obj {
             let stats = schema.entry(field.clone()).or_insert(FieldStats {

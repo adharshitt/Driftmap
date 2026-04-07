@@ -3,323 +3,44 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>🗺️ DriftMap Automated Analyzer</title>
+  <title>DriftMap | Home</title>
   <style>
-    :root {
-      --bg: #0d1117;
-      --panel: #161b22;
-      --text: #c9d1d9;
-      --accent: #58a6ff;
-      --success: #2ea043;
-      --danger: #f85149;
-      --border: #30363d;
-    }
-    body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background-color: var(--bg);
-      color: var(--text);
-      margin: 0;
-      padding: 2rem;
-    }
-    header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-bottom: 1px solid var(--border);
-      padding-bottom: 1rem;
-      margin-bottom: 2rem;
-    }
-    h1 { margin: 0; font-size: 1.8rem; font-weight: 600; }
-    .status-badge {
-      background: var(--success);
-      color: #fff;
-      padding: 4px 12px;
-      border-radius: 12px;
-      font-size: 0.9rem;
-      font-weight: bold;
-    }
-    .status-badge.error { background: var(--danger); }
-    
-    .setup-panel {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 1.5rem;
-      margin-bottom: 2rem;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 1rem;
-      align-items: center;
-    }
-    input, select, button {
-      background: var(--bg);
-      color: var(--text);
-      border: 1px solid var(--border);
-      padding: 0.5rem 1rem;
-      border-radius: 6px;
-      font-size: 1rem;
-    }
-    button {
-      background: var(--success);
-      color: white;
-      border: none;
-      cursor: pointer;
-      font-weight: bold;
-      transition: background 0.2s;
-    }
-    button:hover { background: #2c974b; }
-    button:disabled { background: var(--border); cursor: not-allowed; color: #8b949e; }
-    
-    .main-grid {
-      display: grid;
-      grid-template-columns: 350px 1fr;
-      gap: 1.5rem;
-    }
-    
-    .logs-panel {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 1rem;
-      height: 600px;
-      overflow-y: auto;
-      font-family: 'Consolas', monospace;
-      font-size: 0.85rem;
-    }
-    .log-entry { margin-bottom: 0.4rem; color: #8b949e; }
-    .log-entry.highlight { color: var(--accent); }
-    
-    .drifts-panel {
-      display: grid;
-      gap: 1.5rem;
-      align-content: start;
-    }
-    
-    .card {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      overflow: hidden;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    }
-    .card-header {
-      background: rgba(255,255,255,0.02);
-      border-bottom: 1px solid var(--border);
-      padding: 1rem;
-      font-family: monospace;
-      font-weight: bold;
-      color: var(--accent);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .uuid-badge {
-      background: rgba(88, 166, 255, 0.1);
-      color: var(--accent);
-      padding: 4px 10px;
-      border-radius: 12px;
-      font-size: 0.85rem;
-      font-family: 'Consolas', monospace;
-      border: 1px solid rgba(88, 166, 255, 0.3);
-    }
-    .card-body {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 1px;
-      background: var(--border);
-    }
-    .col {
-      background: var(--panel);
-      padding: 1rem;
-      overflow-x: auto;
-    }
-    .col-title {
-      font-size: 0.8rem;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      color: #8b949e;
-      margin-bottom: 0.5rem;
-    }
-    pre {
-      margin: 0;
-      font-family: 'Consolas', 'Courier New', monospace;
-      font-size: 0.9rem;
-      color: #e6edf3;
-      white-space: pre-wrap;
-    }
+    :root { --bg: #0d1117; --panel: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; }
+    body { font-family: system-ui; background: var(--bg); color: var(--text); margin: 0; padding: 0; }
+    nav { display: flex; gap: 2rem; padding: 1.5rem 2rem; border-bottom: 1px solid var(--border); background: var(--panel); }
+    nav a { color: var(--text); text-decoration: none; font-weight: 500; opacity: 0.7; transition: 0.2s; }
+    nav a:hover { opacity: 1; color: var(--accent); }
+    .hero { padding: 4rem 2rem; text-align: center; }
+    .bento { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; padding: 2rem; max-width: 1200px; margin: 0 auto; }
+    .card { background: var(--panel); border: 1px solid var(--border); padding: 2rem; border-radius: 12px; cursor: pointer; transition: 0.3s; }
+    .card:hover { border-color: var(--accent); transform: translateY(-5px); }
+    h2 { color: var(--accent); margin-top: 0; }
   </style>
 </head>
 <body>
-
-  <header>
-    <h1>🗺️ DriftMap Automated Analyzer</h1>
-    <div id="status" class="status-badge error">🔴 Disconnected</div>
-  </header>
-
-  <div class="setup-panel">
-    <input type="text" id="repoInput" placeholder="Enter GitHub repo (e.g. babel/babel)" style="flex: 1; min-width: 250px;">
-    <input type="password" id="tokenInput" placeholder="GitHub Token (Optional)" style="width: 150px;">
-    <button id="loadBtn" onclick="loadTags()">Fetch Versions</button>
-    <select id="vA" disabled><option>Target A Version</option></select>
-    <select id="vB" disabled><option>Target B Version</option></select>
-    <button id="startBtn" onclick="startAnalysis()" disabled>🚀 Start Analysis</button>
+  <nav>
+    <a href="/">Home</a>
+    <a href="/live">Live Dashboard</a>
+    <a href="/history">History</a>
+    <a href="/onboarding">Onboarding</a>
+  </nav>
+  <div class="hero">
+    <h1>Welcome to DriftMap</h1>
+    <p>Observability for the eBPF era. Automated, Real-time, Global.</p>
   </div>
-
-  <div class="main-grid">
-    <div class="logs-panel" id="logs">
-      <div class="log-entry">Waiting for analysis to start...</div>
+  <div class="bento">
+    <div class="card" onclick="location.href='/onboarding'">
+      <h2>🚀 Onboarding</h2>
+      <p>Configure your eBPF probes and initialize your environment.</p>
     </div>
-    <div class="drifts-panel" id="drifts-container">
-      <!-- Drift cards go here -->
+    <div class="card" onclick="location.href='/live'">
+      <h2>🟢 Live Stream</h2>
+      <p>Watch behavioral drifts happen in real-time via WebSockets.</p>
+    </div>
+    <div class="card" onclick="location.href='/history'">
+      <h2>📜 History</h2>
+      <p>Review and audit all past regression events and analysis results.</p>
     </div>
   </div>
-
-  <script>
-    const logsContainer = document.getElementById('logs');
-    const driftsContainer = document.getElementById('drifts-container');
-    const statusBadge = document.getElementById('status');
-    const repoInput = document.getElementById('repoInput');
-    const vASelect = document.getElementById('vA');
-    const vBSelect = document.getElementById('vB');
-    const startBtn = document.getElementById('startBtn');
-
-    let socket;
-
-    function connect() {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      socket = new WebSocket(`${protocol}//${window.location.host}/ws`);
-
-      socket.onopen = () => {
-        statusBadge.textContent = '🟢 WebSocket Live';
-        statusBadge.className = 'status-badge';
-      };
-
-      socket.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          if (msg.type === 'log') {
-            addLog(msg.text, msg.text.includes('[') ? 'highlight' : '');
-          } else if (msg.type === 'drift') {
-            addDriftCard(msg.payload);
-          }
-        } catch(e) {
-          // Ignore
-        }
-      };
-
-      socket.onclose = () => {
-        statusBadge.textContent = '🔴 Connection Lost';
-        statusBadge.className = 'status-badge error';
-        setTimeout(connect, 3000);
-      };
-    }
-
-    function addLog(text, className = '') {
-      const el = document.createElement('div');
-      el.className = `log-entry ${className}`;
-      el.textContent = `> ${text}`;
-      logsContainer.appendChild(el);
-      logsContainer.scrollTop = logsContainer.scrollHeight;
-    }
-
-    async function loadTags() {
-      let repo = repoInput.value.trim();
-      let token = tokenInput.value.trim();
-      repo = repo.replace('https://github.com/', '').replace(/\/$/, '');
-      
-      if (!repo || !repo.includes('/')) return alert('Enter a valid repo, e.g., babel/babel');
-      
-      repoInput.value = repo; 
-      addLog(`Fetching versions for ${repo}...`);
-      
-      const headers = { 'User-Agent': 'DriftMap-Edge-Worker' };
-      if (token) headers['Authorization'] = `token ${token}`;
-
-      try {
-        // Fetch both tags and branches to give more options
-        const [tagsRes, branchesRes] = await Promise.all([
-          fetch(`https://api.github.com/repos/${repo}/tags`, { headers }),
-          fetch(`https://api.github.com/repos/${repo}/branches`, { headers })
-        ]);
-
-        if (tagsRes.status === 403) throw new Error('GitHub Rate Limit Exceeded. Please provide a Token.');
-        if (!tagsRes.ok) throw new Error(`GitHub API error: ${tagsRes.statusText}`);
-        
-        const tags = await tagsRes.json();
-        const branches = await branchesRes.json();
-        
-        vASelect.innerHTML = '<option value="" disabled selected>Select Version A</option>';
-        vBSelect.innerHTML = '<option value="" disabled selected>Select Version B</option>';
-        
-        const options = [
-          ...branches.map(b => ({ name: b.name, type: 'branch' })),
-          ...tags.map(t => ({ name: t.name, type: 'tag' }))
-        ];
-
-        options.forEach(opt => {
-          vASelect.add(new Option(`${opt.name} (${opt.type})`, opt.name));
-          vBSelect.add(new Option(`${opt.name} (${opt.type})`, opt.name));
-        });
-        
-        vASelect.disabled = false;
-        vBSelect.disabled = false;
-        startBtn.disabled = false;
-        addLog(`Loaded ${options.length} potential versions (tags + branches).`);
-      } catch (err) {
-        addLog(`Error: ${err.message}`, 'error');
-        alert(`Failed to load: ${err.message}`);
-      }
-    }
-
-    function startAnalysis() {
-      const repo = repoInput.value;
-      const vA = vASelect.value;
-      const vB = vBSelect.value;
-      const token = tokenInput.value.trim();
-      
-      driftsContainer.innerHTML = '';
-      logsContainer.innerHTML = '';
-      addLog(`Initiating analysis request for ${repo}...`);
-      
-      socket.send(JSON.stringify({
-        type: 'analyze',
-        repo: repo,
-        vA: vA,
-        vB: vB,
-        token: token
-      }));
-      
-      startBtn.disabled = true;
-      setTimeout(() => { startBtn.disabled = false; }, 8000);
-    }
-
-    function addDriftCard(drift) {
-      const card = document.createElement('div');
-      card.className = 'card drift-card';
-      
-      let bodyA = typeof drift.body_a === 'object' ? JSON.stringify(drift.body_a, null, 2) : drift.body_a;
-      let bodyB = typeof drift.body_b === 'object' ? JSON.stringify(drift.body_b, null, 2) : drift.body_b;
-      
-      card.innerHTML = `
-        <div class="card-header">
-          <span>${drift.endpoint}</span>
-          <span class="uuid-badge">UUID: ${drift.uuid}</span>
-        </div>
-        <div class="card-body">
-          <div class="col">
-            <div class="col-title">Target A (${vASelect.value})</div>
-            <pre>${bodyA}</pre>
-          </div>
-          <div class="col">
-            <div class="col-title" style="color: var(--danger)">Target B (${vBSelect.value})</div>
-            <pre>${bodyB}</pre>
-          </div>
-        </div>
-      `;
-      driftsContainer.insertBefore(card, driftsContainer.firstChild);
-    }
-
-    connect();
-  </script>
 </body>
 </html>

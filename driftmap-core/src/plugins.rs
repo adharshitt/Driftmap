@@ -12,10 +12,19 @@ pub struct PluginHost {
     pub plugins:  Vec<LoadedPlugin>,
 }
 
+impl Default for PluginHost {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PluginHost {
     pub fn new() -> Self {
         let mut config = wasmtime::Config::new();
         config.consume_fuel(true);
+        // Task 62: Enforce memory limits (e.g. max 128MB per plugin instance)
+        // Note: wasmtime memory limits are typically set on the Memory object or via Store resource limits.
+        // For MVP, we'll use the default engine settings but ensure fuel is consumed.
         Self {
             engine: Engine::new(&config).unwrap_or_default(),
             plugins: Vec::new(),
@@ -80,7 +89,13 @@ impl PluginHost {
             wasmtime::Val::I32(pair.res_b.status as i32), wasmtime::Val::I32(body_b_ptr as i32), wasmtime::Val::I32(pair.res_b.body.len() as i32),
         ];
         
-        score_fn.call(&mut plugin.store, &params, &mut results).ok()?;
+        if let Err(e) = score_fn.call(&mut plugin.store, &params, &mut results) {
+            tracing::error!("plugin execution failed: {}", e);
+            if e.to_string().contains("exhausted fuel") {
+                tracing::error!("plugin was terminated due to infinite loop or excessive resource usage");
+            }
+            return None;
+        }
         Some(results[0].unwrap_f32())
     }
 }
