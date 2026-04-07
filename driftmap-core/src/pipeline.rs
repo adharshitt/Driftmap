@@ -17,7 +17,10 @@ pub async fn initialize_observability_pipeline(
     target_a_port: u16,
     target_b_port: u16,
 ) -> anyhow::Result<watch::Receiver<Vec<BehavioralDivergenceScore>>> {
+    #[cfg(debug_assertions)]
     let mut bpf = Ebpf::load(include_bytes!("../../target/bpfel-unknown-none/debug/driftmap-probe"))?;
+    #[cfg(not(debug_assertions))]
+    let mut bpf = Ebpf::load(include_bytes!("../../target/bpfel-unknown-none/release/driftmap-probe"))?;
     if let Err(e) = EbpfLogger::init(&mut bpf) {
         warn!("failed to initialize eBPF logger: {}", e);
     }
