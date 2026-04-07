@@ -108,5 +108,3 @@ fn try_extract_message(data: &[u8]) -> Option<usize> {
     Some(total_len)
 }
 
-// Fixed the dummy Request to match the new definition
-use crate::http::HttpRequest;

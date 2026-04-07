@@ -1,6 +1,6 @@
 use aya::{
     maps::{HashMap as BpfHashMap, RingBuf},
-    programs::{Tc, TcAttachType},
+    programs::{tc, SchedClassifier, TcAttachType},
     Ebpf,
 };
 use aya_log::EbpfLogger;
@@ -26,7 +26,8 @@ pub async fn initialize_observability_pipeline(
     watched_ports.insert(target_a_port as u32, 1, 0)?;
     watched_ports.insert(target_b_port as u32, 1, 0)?;
 
-    let program: &mut Tc = bpf.program_mut("intercept_traffic_control_hook").unwrap().try_into()?;
+    let _ = tc::qdisc_add_clsact(&interface);
+    let program: &mut SchedClassifier = bpf.program_mut("intercept_traffic_control_hook").unwrap().try_into()?;
     program.load()?;
     program.attach(&interface, TcAttachType::Ingress)?;
     program.attach(&interface, TcAttachType::Egress)?;
@@ -34,22 +35,21 @@ pub async fn initialize_observability_pipeline(
     info!("eBPF probe attached to {} (watching ports {}, {})", interface, target_a_port, target_b_port);
 
     let (match_tx, mut match_rx) = mpsc::channel(1024);
-    let (pair_tx, mut pair_rx) = mpsc::channel(1024);
+    let (pair_tx, _pair_rx) = mpsc::channel(1024);
     let (score_tx, score_rx) = watch::channel(Vec::new());
     
     let mut reassembler = Reassembler::new(match_tx);
     let mut matcher = Matcher::new(pair_tx);
     let scorer = Arc::new(Mutex::new(Scorer::new()));
-
-    let ring_buf = RingBuf::try_from(bpf.map("PACKET_EVENT_RING_BUFFER").unwrap())?;
-    let mut poll = tokio::io::unix::AsyncFd::new(ring_buf)?;
-
     let scorer_clone = scorer.clone();
-    
+
     tokio::spawn(async move {
+        let ring_buf = RingBuf::try_from(bpf.map("PACKET_EVENT_RING_BUFFER").unwrap()).unwrap();
+        let mut poll = tokio::io::unix::AsyncFd::new(ring_buf).unwrap();
+
         loop {
             let mut guard = poll.readable_mut().await.unwrap();
-            let mut rb = guard.get_inner_mut();
+            let rb = guard.get_inner_mut();
             while let Some(event) = rb.next() {
                 let packet_event: &driftmap_probe_common::NetworkPacketEvent = unsafe {
                     &*(event.as_ptr() as *const driftmap_probe_common::NetworkPacketEvent)
@@ -69,7 +69,7 @@ pub async fn initialize_observability_pipeline(
             };
             
             match msg {
-                crate::http::HttpMessage::Request(req) => {
+                crate::http::HttpMessage::Request(_req) => {
                     // We only pass req/res pairs to Matcher. Wait for response.
                 }
                 crate::http::HttpMessage::Response(res) => {

@@ -33,7 +33,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: bpfel-unknown-none
+          components: rust-src
+      - name: Install bpf-linker
+        run: cargo install bpf-linker
       - name: Build Cache
         uses: Swatinem/rust-cache@v2
+      - name: Build eBPF Probe
+        run: cargo build -p driftmap-probe --target bpfel-unknown-none -Z build-std=core
       - name: Run all tests
-        run: cargo test --workspace
+        run: cargo test --workspace --exclude driftmap-probe

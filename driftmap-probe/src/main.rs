@@ -7,8 +7,6 @@ use aya_ebpf::{
     maps::{HashMap, RingBuf},
     programs::TcContext,
 };
-use aya_log_ebpf::info;
-use core::mem;
 use driftmap_probe_common::NetworkPacketEvent;
 use network_types::{
     eth::{EtherType, EthHdr},

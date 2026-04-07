@@ -1,4 +1,4 @@
-use serde_json::{Value, Map};
+use serde_json::Value;
 use std::collections::HashSet;
 
 pub struct SemanticNormalizer {

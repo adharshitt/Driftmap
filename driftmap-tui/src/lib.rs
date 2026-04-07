@@ -7,7 +7,7 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use std::io::{self, stdout};
+use std::io::stdout;
 use std::time::Duration;
 use tokio::sync::watch;
 

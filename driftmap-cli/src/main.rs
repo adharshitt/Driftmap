@@ -50,7 +50,7 @@ async fn main() -> Result<()> {
 
     match cli.command {
         Command::Watch { config, target_a, target_b } => {
-            let mut application_config = config::load_config(config)?;
+            let mut application_config = config::load_config(config.clone())?;
             if let Some(a) = target_a { application_config.watch.target_a = a; }
             if let Some(b) = target_b { application_config.watch.target_b = b; }
 
@@ -112,7 +112,7 @@ async fn main() -> Result<()> {
             }
         }
         Command::Init => {
-            use dialoguer::{Input, Select};
+            use dialoguer::Input;
             use std::fs::File;
             use std::io::Write;
 
