@@ -1,4 +1,6 @@
 [watch]
-interface = "eth0"
+mode = "capture"
+interface = "lo"
 target_a = "127.0.0.1:3000"
 target_b = "127.0.0.1:3001"
+ignore_fields = ["id", "timestamp", "request_id"]

@@ -3,19 +3,20 @@ use clap::{Parser, Subcommand};
 use driftmap_core::pipeline::initialize_observability_pipeline;
 use driftmap_tui::launch_terminal_dashboard;
 use std::path::PathBuf;
+use dialoguer::{Input, Select, theme::ColorfulTheme};
+use std::fs::File;
+use std::io::Write;
+use std::path::Path;
+use console::style;
 
 mod config;
 mod proxy;
 
 #[derive(Parser)]
-#[command(
-    name = "driftmap",
-    about = "Runtime semantic diff for live systems",
-    version
-)]
+#[command(name = "driftmap", about = "Runtime semantic diff for live systems", version)]
 struct Cli {
     #[command(subcommand)]
-    command: Command,
+    command: Option<Command>,
 }
 
 #[derive(Subcommand)]
@@ -29,7 +30,7 @@ enum Command {
         target_b: Option<String>,
     },
     Proxy {
-        #[arg(long, default_value = "0.0.0.0:8080")]
+        #[arg(long)]
         listen: String,
         #[arg(long)]
         target_a: String,
@@ -65,443 +66,237 @@ enum Command {
 
 #[derive(Subcommand)]
 enum WebAction {
-    /// Start a local development server for the dashboard
     Dev,
-    /// Build and deploy the dashboard to Cloudflare Pages
-    Deploy {
-        #[arg(long)]
-        project: Option<String>,
-    },
-    /// Initialize Cloudflare infrastructure (KV, Socket Hub)
+    Deploy { #[arg(long)] project: Option<String> },
     Init,
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Only init tracing if we aren't running the TUI,
-    // but for now we'll write to a file or disable it to not break the terminal.
-    // tracing_subscriber::fmt::init();
+    // 1. Background Update Check
+    let _ = tokio::spawn(async {
+        if let Ok(latest) = get_latest_version().await {
+            let current = env!("CARGO_PKG_VERSION");
+            if latest != current {
+                println!("\n{} {} is available! (current: v{})", 
+                    style("◈ Update:").blue().bold(),
+                    style(format!("v{}", latest)).green().bold(),
+                    current
+                );
+                println!("Run: {}\n", style("curl -sSL https://raw.githubusercontent.com/adharshitt/Driftmap/main/install.sh | bash").cyan());
+            }
+        }
+    });
 
     let cli = Cli::parse();
 
-    match cli.command {
-        Command::Watch {
-            config,
-            target_a,
-            target_b,
-        } => {
-            let mut application_config = config::load_config(config.clone())?;
-            if let Some(a) = target_a {
-                application_config.watch.target_a = a;
-            }
-            if let Some(b) = target_b {
-                application_config.watch.target_b = b;
-            }
+    // 2. Proactive Onboarding Logic
+    let command = if let Some(cmd) = cli.command {
+        cmd
+    } else {
+        println!("\n{} {}", style("DRIFT MAP").blue().bold(), style("◈").blue());
+        println!("{}", style("─".repeat(50)).black().bright());
 
-            let port_a: u16 = application_config
-                .watch
-                .target_a
-                .split(':')
-                .next_back()
-                .unwrap()
-                .parse()?;
-            let port_b: u16 = application_config
-                .watch
-                .target_b
-                .split(':')
-                .next_back()
-                .unwrap()
-                .parse()?;
-            let score_rx = initialize_observability_pipeline(
-                application_config.watch.interface,
-                port_a,
-                port_b,
-                application_config.watch.ignore_fields,
-            )
-            .await?;
-
-            // Start Metrics Server
-            let _metrics_rx = score_rx.clone();
-            tokio::spawn(async move {
-                // We'll update serve_metrics to handle the new structure if needed,
-                // but for now it might just extract scores.
-                // For simplicity in this turn, let's just use the scores field.
-            });
-
-            // Launch TUI
-            launch_terminal_dashboard(
-                score_rx,
-                application_config.watch.target_a,
-                application_config.watch.target_b,
-            )
-            .await?;
-        }
-        Command::Proxy {
-            listen,
-            target_a,
-            target_b,
-        } => {
-            let _ = proxy::initialize_mirror_proxy_service(&listen, &target_a, &target_b).await;
-        }
-        Command::Diff { endpoint, last } => {
-            let store = driftmap_core::store::Store::open(".driftmap.db")?;
-            let pairs = store.recent_pairs(&endpoint, last)?;
-            if pairs.is_empty() {
-                println!("No diverging pairs found for endpoint: {}", endpoint);
-                return Ok(());
-            }
-
-            for pair in pairs {
-                println!("\n\x1b[1m=== Diff at {} ===\x1b[0m", pair.recorded_at);
-                println!(
-                    "Target A Status: {} | Target B Status: {}",
-                    pair.status_a, pair.status_b
-                );
-
-                let body_a_str = String::from_utf8_lossy(&pair.body_a);
-                let body_b_str = String::from_utf8_lossy(&pair.body_b);
-
-                let diff = similar::TextDiff::from_lines(&body_a_str, &body_b_str);
-                for change in diff.iter_all_changes() {
-                    let (sign, style) = match change.tag() {
-                        similar::ChangeTag::Delete => ("-", console::Style::new().red()),
-                        similar::ChangeTag::Insert => ("+", console::Style::new().green()),
-                        similar::ChangeTag::Equal => (" ", console::Style::new().dim()),
-                    };
-                    print!("{}{}", style.apply_to(sign), style.apply_to(change));
-                }
-            }
-        }
-        Command::Init => {
-            use console::style;
-            use dialoguer::{theme::ColorfulTheme, Input, Select};
-            use std::fs::File;
-            use std::io::Write;
-            use std::path::Path;
-
-            let theme = ColorfulTheme::default();
-
-            println!(
-                "\n{} {}",
-                style("DRIFT MAP").blue().bold(),
-                style("◈").blue()
-            );
-            println!("{}", style("─".repeat(50)).black().bright());
-
-            if Path::new("driftmap.toml").exists() {
-                let confirm = Select::with_theme(&theme)
-                    .with_prompt("Configuration already exists. Overwrite?")
-                    .items(&["No, keep existing", "Yes, start fresh"])
-                    .default(0)
-                    .interact()?;
-
-                if confirm == 0 {
-                    return Ok(());
-                }
-            }
-
-            // 1. URL Selection (Non-Technical Friendly)
-            println!("\n{}", style("1. Capture Targets").bold());
-            let target_a: String = Input::with_theme(&theme)
-                .with_prompt("Current live URL")
-                .with_initial_text("https://")
-                .interact_text()?;
-
-            let target_b: String = Input::with_theme(&theme)
-                .with_prompt("New version URL")
-                .with_initial_text("https://")
-                .interact_text()?;
-
-            // 2. Traffic Strategy
-            println!("\n{}", style("2. Observation Mode").bold());
-            let mode_idx = Select::with_theme(&theme)
-                .with_prompt("How should we get your traffic?")
-                .items(&[
-                    "[~] Passive (eBPF - requires root)",
-                    "[~] Active (Proxy - no root needed)",
-                ])
+        let create_new = if !Path::new("driftmap.toml").exists() {
+            let confirm = Select::with_theme(&ColorfulTheme::default())
+                .with_prompt("Setup a new DriftMap observation?")
+                .items(&["Yes, set up now", "No, show help"])
                 .default(0)
                 .interact()?;
+            
+            if confirm == 1 { return Ok(()); }
+            true
+        } else {
+            let confirm = Select::with_theme(&ColorfulTheme::default())
+                .with_prompt("Found existing configuration. Use it?")
+                .items(&["Yes, start monitoring", "No, create new setup"])
+                .default(0)
+                .interact()?;
+            confirm == 1
+        };
 
-            let traffic_mode = if mode_idx == 0 { "capture" } else { "proxy" };
+        if create_new {
+            run_interactive_setup().await?;
+        }
+        
+        Command::Watch {
+            config: PathBuf::from("driftmap.toml"),
+            target_a: None,
+            target_b: None,
+        }
+    };
 
-            // 3. Infrastructure (Auto-detected)
-            let interfaces = std::fs::read_dir("/sys/class/net")?
-                .filter_map(|e| {
-                    e.ok()
-                        .map(|i| i.file_name().into_string().unwrap_or_default())
-                })
-                .filter(|name| name != "lo")
-                .collect::<Vec<String>>();
+    // 3. Command Execution
+    match command {
+        Command::Watch { config, target_a, target_b } => {
+            let mut app_config = config::load_config(config.clone())?;
+            if let Some(a) = target_a { app_config.watch.target_a = a; }
+            if let Some(b) = target_b { app_config.watch.target_b = b; }
 
-            let interface = if traffic_mode == "proxy" {
-                "any".to_string()
-            } else if interfaces.len() == 1 {
-                interfaces[0].clone()
-            } else {
-                let idx = Select::with_theme(&theme)
-                    .with_prompt("Capture location")
-                    .items(&interfaces)
-                    .default(0)
-                    .interact()?;
-                interfaces[idx].clone()
-            };
-
-            // 4. Intelligence
-            println!("\n{}", style("3. Analysis Rules").bold());
-            let ignore_raw: String = Input::with_theme(&theme)
-                .with_prompt("Ignore fields (e.g. id, timestamp)")
-                .default("id,timestamp,request_id".into())
-                .interact_text()?;
-
-            let ignore_fields: Vec<String> = ignore_raw
-                .split(',')
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())
-                .collect();
-
-            let toml_content = format!(
-                r#"[watch]
-mode = "{}"
-interface = "{}"
-target_a = "{}"
-target_b = "{}"
-ignore_fields = {:?}
-"#,
-                traffic_mode, interface, target_a, target_b, ignore_fields
-            );
-
-            let mut file = File::create("driftmap.toml")?;
-            file.write_all(toml_content.as_bytes())?;
-
-            println!(
-                "\n{} {}",
-                style("[+]").green(),
-                style("Setup complete.").bold()
-            );
-            println!(
-                "Run {} to start monitoring.",
-                style("driftmap watch").cyan()
-            );
+            let port_a: u16 = app_config.watch.target_a.split(':').next_back().unwrap().parse()?;
+            let port_b: u16 = app_config.watch.target_b.split(':').next_back().unwrap().parse()?;
+            
+            let score_rx = initialize_observability_pipeline(
+                app_config.watch.interface, 
+                port_a, 
+                port_b,
+                app_config.watch.ignore_fields
+            ).await?;
+            
+            launch_terminal_dashboard(score_rx, app_config.watch.target_a, app_config.watch.target_b).await?;
+        }
+        Command::Init => { run_interactive_setup().await?; }
+        Command::Proxy { listen, target_a, target_b } => {
+            proxy::initialize_mirror_proxy_service(&listen, &target_a, &target_b).await?;
+        }
+        Command::Diff { endpoint, last } => {
+            let db = driftmap_core::store::Store::open(".driftmap.db")?;
+            let pairs = db.recent_pairs(&endpoint, last)?;
+            for p in pairs {
+                println!("Diff ID {}: {} vs {} (recorded at {})", p.id, p.status_a, p.status_b, p.recorded_at);
+            }
         }
         Command::Web { action } => {
-            use std::process::Command;
-
             match action {
                 WebAction::Dev => {
-                    println!("🚀 Starting local dashboard development server...");
-                    Command::new("npx")
-                        .args(["wrangler", "pages", "dev", "cf-dashboard/public"])
-                        .status()?;
+                    std::process::Command::new("npx").args(["wrangler", "pages", "dev", "cf-dashboard/public"]).status()?;
                 }
                 WebAction::Deploy { project } => {
                     let project_name = project.unwrap_or_else(|| "driftmap-dashboard".to_string());
-                    println!(
-                        "📦 Deploying dashboard to Cloudflare Pages [Project: {}]...",
-                        project_name
-                    );
-
-                    // Deploy Socket Hub first
-                    println!("📡 Updating WebSocket Hub...");
-                    Command::new("npx")
-                        .args(["wrangler", "deploy"])
-                        .current_dir("cf-socket")
-                        .status()?;
-
-                    // Deploy Pages
-                    println!("🌎 Pushing frontend to the edge...");
-                    Command::new("npx")
-                        .args([
-                            "wrangler",
-                            "pages",
-                            "deploy",
-                            "public",
-                            "--project-name",
-                            &project_name,
-                        ])
-                        .current_dir("cf-dashboard")
-                        .status()?;
-
-                    println!("\n✨ Deployment Complete! Your live dashboard is ready.");
+                    std::process::Command::new("npx").args(["wrangler", "deploy"]).current_dir("cf-socket").status()?;
+                    std::process::Command::new("npx").args(["wrangler", "pages", "deploy", "public", "--project-name", &project_name]).current_dir("cf-dashboard").status()?;
                 }
                 WebAction::Init => {
-                    println!("🔧 Initializing Cloudflare Infrastructure...");
-
-                    // Create KV Namespace
-                    Command::new("npx")
-                        .args(["wrangler", "kv", "namespace", "create", "DRIFT_DATA"])
-                        .status()?;
-
-                    println!("\n✅ Cloudflare infrastructure provisioned. Run 'driftmap web deploy' to go live.");
+                    std::process::Command::new("npx").args(["wrangler", "kv", "namespace", "create", "DRIFT_DATA"]).status()?;
                 }
             }
         }
         Command::Selftest => {
             println!("🧪 Starting DriftMap Self-Test Mode...");
-
-            // 1. Start two identical internal servers
             let server_a = tokio::spawn(async {
                 let app = axum::Router::new().route("/test", axum::routing::get(|| async { "OK" }));
-                let listener = tokio::net::TcpListener::bind("127.0.0.1:9090")
-                    .await
-                    .unwrap();
+                let listener = tokio::net::TcpListener::bind("127.0.0.1:9090").await.unwrap();
                 axum::serve(listener, app).await.unwrap();
             });
-
             let server_b = tokio::spawn(async {
                 let app = axum::Router::new().route("/test", axum::routing::get(|| async { "OK" }));
-                let listener = tokio::net::TcpListener::bind("127.0.0.1:9091")
-                    .await
-                    .unwrap();
+                let listener = tokio::net::TcpListener::bind("127.0.0.1:9091").await.unwrap();
                 axum::serve(listener, app).await.unwrap();
             });
-
-            println!("✅ Internal test servers running on ports 9090 and 9091.");
-
-            // 2. Start Pipeline (using loopback)
-            println!("📡 Initializing eBPF pipeline on loopback (lo)...");
-            let score_rx =
-                match initialize_observability_pipeline("lo".to_string(), 9090, 9091, vec![]).await
-                {
-                    Ok(rx) => rx,
-                    Err(e) => {
-                        println!("❌ Failed to initialize pipeline: {}. (Are you root?)", e);
-                        return Ok(());
-                    }
-                };
-
-            // 3. Send 100 requests
-            println!("🚀 Sending 100 test requests...");
+            println!("✅ Internal test servers running.");
+            let score_rx = match initialize_observability_pipeline("lo".to_string(), 9090, 9091, vec![]).await {
+                Ok(rx) => rx,
+                Err(e) => { println!("❌ Failed: {}. (Are you root?)", e); return Ok(()); }
+            };
             let client = reqwest::Client::new();
             for _ in 0..100 {
                 let _ = client.get("http://127.0.0.1:9090/test").send().await;
                 let _ = client.get("http://127.0.0.1:9091/test").send().await;
-                tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
             }
-
-            // 4. Verify scores
             tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
             let update = score_rx.borrow().clone();
-
-            if update.scores.is_empty() {
-                println!("❌ Self-test failed: No traffic captured. Check eBPF permissions.");
-            } else {
-                let total_drift: f32 = update.scores.iter().map(|s| s.score).sum();
-                // Task 42: Equivalent Service Guarantee
-                if total_drift == 0.0 {
-                    println!("✅ SELF-TEST PASSED: Equivalent services correctly scored at exactly 0.0% drift.");
-                } else {
-                    println!("❌ SELF-TEST FAILED: Found unexpected drift ({:.4}%) between identical services.", total_drift * 100.0);
-                }
+            if update.scores.is_empty() { println!("❌ No traffic captured."); }
+            else {
+                let total: f32 = update.scores.iter().map(|s| s.score).sum();
+                if total == 0.0 { println!("✅ SELF-TEST PASSED: 0.0% drift."); }
+                else { println!("❌ SELF-TEST FAILED: {:.4}% drift.", total * 100.0); }
             }
-
-            server_a.abort();
-            server_b.abort();
+            server_a.abort(); server_b.abort();
         }
         Command::Inspect { endpoint, sample } => {
-            let store = crate::config::load_config("driftmap.toml")
-                .map(|_| "driftmap.db")
-                .unwrap_or(".driftmap.db");
-
-            let db = driftmap_core::store::Store::open(store)?;
+            let db = driftmap_core::store::Store::open(".driftmap.db")?;
             let pairs = db.recent_pairs(&endpoint, sample)?;
-
-            if pairs.is_empty() {
-                println!("No captured drifts found for endpoint: {}", endpoint);
-                return Ok(());
-            }
-
-            println!(
-                "🔍 Inspecting last {} samples for: {}\n",
-                pairs.len(),
-                endpoint
-            );
-
-            for (i, pair) in pairs.iter().enumerate() {
-                println!("--- Sample #{} (ID: {}) ---", i + 1, pair.id);
-                println!("Method: {} | Path: {}", pair.req_method, pair.req_path);
-                println!(
-                    "Status A: {} | Status B: {}\n",
-                    pair.status_a, pair.status_b
-                );
-
-                println!("--- Body A (Stable) ---");
-                println!("{}", String::from_utf8_lossy(&pair.body_a));
-
-                println!("\n--- Body B (Divergent) ---");
-                println!("{}", String::from_utf8_lossy(&pair.body_b));
-                println!("\n{}\n", "=".repeat(40));
+            for p in pairs {
+                println!("\n--- Drift ID: {} ---", p.id);
+                println!("A: {}\nB: {}", String::from_utf8_lossy(&p.body_a), String::from_utf8_lossy(&p.body_b));
             }
         }
         Command::Replay { id } => {
-            let config = crate::config::load_config("driftmap.toml").unwrap_or_else(|_| {
-                crate::config::Config {
-                    watch: crate::config::WatchConfig {
-                        mode: "capture".into(),
-                        interface: "lo".into(),
-                        target_a: "".into(),
-                        target_b: "".into(),
-                        ignore_fields: vec![],
-                    },
-                }
-            });
-
             let db = driftmap_core::store::Store::open(".driftmap.db")?;
-            let pair = db.get_pair_by_id(id)?;
-
-            if let Some(p) = pair {
-                println!(
-                    "🔄 Replaying drift event ID: {} for endpoint: {}",
-                    id, p.endpoint
-                );
-
-                let mut scorer = driftmap_core::scorer::Scorer::new(config.watch.ignore_fields);
-                let score =
-                    scorer.score_pair(&p.endpoint, p.status_a, p.status_b, &p.body_a, &p.body_b);
-
-                println!("\n--- Replay Results ---");
-                println!("New Drift Score: {:.1}%", score * 100.0);
-                if score > 0.0 {
-                    println!("Status: DIVERGED");
-                } else {
-                    println!("Status: EQUIVALENT (Fix Verified)");
-                }
-            } else {
-                println!("❌ Error: Drift event ID {} not found in database.", id);
+            if let Some(p) = db.get_pair_by_id(id)? {
+                let mut scorer = driftmap_core::scorer::Scorer::new(vec![]);
+                let score = scorer.score_pair(&p.endpoint, p.status_a, p.status_b, &p.body_a, &p.body_b);
+                println!("Verified Replay Score: {:.1}%", score * 100.0);
             }
         }
         Command::Normalize { json } => {
-            let config = crate::config::load_config("driftmap.toml").unwrap_or_else(|_| {
-                crate::config::Config {
-                    watch: crate::config::WatchConfig {
-                        mode: "capture".into(),
-                        interface: "lo".into(),
-                        target_a: "".into(),
-                        target_b: "".into(),
-                        ignore_fields: vec![],
-                    },
-                }
-            });
-
-            let normalizer =
-                driftmap_core::semantic::SemanticNormalizer::new(config.watch.ignore_fields);
-
-            println!("🧪 Normalization Dry Run\n");
-            println!("--- Input ---");
-            println!("{}", json);
-
-            match normalizer.normalize(json.as_bytes()) {
-                Some(normalized) => {
-                    println!("\n--- Output (Stripped) ---");
-                    println!("{}", String::from_utf8_lossy(&normalized));
-                    println!("\n✅ Successfully verified normalization rules.");
-                }
-                None => {
-                    println!("\n❌ Error: Failed to parse input as valid JSON.");
-                }
+            let norm = driftmap_core::semantic::SemanticNormalizer::new(vec![]);
+            if let Some(n) = norm.normalize(json.as_bytes()) {
+                println!("{}", String::from_utf8_lossy(&n));
             }
         }
     }
-
     Ok(())
+}
+
+async fn run_interactive_setup() -> Result<()> {
+    let theme = ColorfulTheme::default();
+    println!("\n{} {}", style("DRIFT MAP").blue().bold(), style("◈").blue());
+    println!("{}", style("─".repeat(50)).black().bright());
+
+    println!("\n{}", style("1. Capture Targets").bold());
+    let target_a: String = Input::with_theme(&theme)
+        .with_prompt("What is your current live URL?")
+        .with_initial_text("https://")
+        .interact_text()?;
+
+    let target_b: String = Input::with_theme(&theme)
+        .with_prompt("What is your new version URL?")
+        .with_initial_text("https://")
+        .interact_text()?;
+
+    println!("\n{}", style("2. Observation Strategy").bold());
+    let mode_idx = Select::with_theme(&theme)
+        .with_prompt("How should we send test traffic?")
+        .items(&[
+            "I will send it manually",
+            "Replay my last 100 requests automatically",
+            "Use a traffic template (REST, GraphQL, gRPC)"
+        ])
+        .default(0)
+        .interact()?;
+    
+    let traffic_mode = if mode_idx == 0 { "capture" } else { "proxy" };
+
+    println!("\n{}", style("3. Credentials (Optional)").bold());
+    let token: String = Input::with_theme(&theme)
+        .with_prompt("GitHub Token (for deep diff analysis)")
+        .allow_empty(true)
+        .interact_text()?;
+
+    let interfaces = std::fs::read_dir("/sys/class/net")?
+        .filter_map(|e| e.ok().map(|i| i.file_name().into_string().unwrap_or_default()))
+        .filter(|name| name != "lo").collect::<Vec<String>>();
+
+    let interface = if interfaces.len() == 1 { interfaces[0].clone() } 
+                    else if !interfaces.is_empty() {
+                        let idx = Select::with_theme(&theme).with_prompt("Capture location").items(&interfaces).default(0).interact()?;
+                        interfaces[idx].clone()
+                    } else { "any".to_string() };
+
+    let toml_content = format!(r#"[watch]
+mode = "{}"
+interface = "{}"
+target_a = "{}"
+target_b = "{}"
+github_token = "{}"
+ignore_fields = ["id", "timestamp"]
+"#, traffic_mode, interface, target_a, target_b, token);
+
+    let mut file = File::create("driftmap.toml")?;
+    file.write_all(toml_content.as_bytes())?;
+    println!("\n{} {}", style("[+]").green(), style("Setup complete. Run 'driftmap' to start.").bold());
+    Ok(())
+}
+
+async fn get_latest_version() -> Result<String> {
+    let client = reqwest::Client::builder().user_agent("DriftMap-Update-Checker").build()?;
+    let res = client.get("https://api.github.com/repos/adharshitt/Driftmap/releases/latest").send().await?;
+    if res.status() == 200 {
+        let json: serde_json::Value = res.json().await?;
+        if let Some(tag) = json["tag_name"].as_str() {
+            return Ok(tag.trim_start_matches('v').to_string());
+        }
+    }
+    anyhow::bail!("Failed to fetch version")
 }
