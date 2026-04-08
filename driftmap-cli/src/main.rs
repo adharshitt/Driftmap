@@ -81,7 +81,7 @@ async fn main() -> Result<()> {
     let _ = tokio::spawn(async {
         if let Ok(latest) = get_latest_version().await {
             let current = env!("CARGO_PKG_VERSION");
-            if latest != current {
+            if is_newer(&latest, current) {
                 println!("\n{} {} is available! (current: v{})", 
                     style("◈ Update:").blue().bold(),
                     style(format!("v{}", latest)).green().bold(),

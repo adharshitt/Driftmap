@@ -105,22 +105,12 @@ export default {
       return obj.fetch(request);
     }
 
-    // 2. Auth Guard logic
-    const isLoggedIn = (request.headers.get("Cookie") || "").includes("dm_session=");
-    const protectedRoutes = ["/", "/live", "/history", "/onboarding"];
-    const isProtected = protectedRoutes.includes(path);
+    // 2. Routing Map (AUTH REMOVED)
+    if (path === "/onboarding") return env.ASSETS.fetch(new Request(`${url.origin}/onboarding.html`, request));
+    if (path === "/live") return env.ASSETS.fetch(new Request(`${url.origin}/live.html`, request));
+    if (path === "/history") return env.ASSETS.fetch(new Request(`${url.origin}/history.html`, request));
+    if (path === "/" || path === "/home") return env.ASSETS.fetch(new Request(`${url.origin}/index.html`, request));
 
-    if (isProtected && !isLoggedIn) {
-      // Internal rewrite: Serve /login content without a browser redirect
-      // This prevents any 308/302 loop with Cloudflare's internal Pretty URLs
-      const loginRequest = new Request(request);
-      const loginUrl = new URL(request.url);
-      loginUrl.pathname = "/login"; 
-      return env.ASSETS.fetch(new Request(loginUrl, request));
-    }
-
-    // 3. Fallback to default Cloudflare Pages serving
-    // This will correctly map /login -> login.html, /history -> history.html, etc.
     return env.ASSETS.fetch(request);
   }
 };
