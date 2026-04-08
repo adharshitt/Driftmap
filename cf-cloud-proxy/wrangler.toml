@@ -1,0 +1,11 @@
+name = "driftmap-cloud-proxy"
+main = "index.js"
+compatibility_date = "2024-04-05"
+
+[vars]
+TARGET_A = "https://api-v1.yourapp.com"
+TARGET_B = "https://api-v2.yourapp.com"
+
+[[queues.producers]]
+queue = "scoring-queue"
+binding = "SCORING_QUEUE"

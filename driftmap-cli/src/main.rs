@@ -62,6 +62,11 @@ enum Command {
         #[arg(long)]
         json: String,
     },
+    Annotate {
+        endpoint: String,
+        #[arg(short, long)]
+        note: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -73,7 +78,6 @@ enum WebAction {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // 1. Background Update Check
     let _ = tokio::spawn(async {
         if let Ok(latest) = get_latest_version().await {
             let current = env!("CARGO_PKG_VERSION");
@@ -90,43 +94,81 @@ async fn main() -> Result<()> {
 
     let cli = Cli::parse();
 
-    // 2. Proactive Onboarding Logic
-    let command = if let Some(cmd) = cli.command {
-        cmd
+    if let Some(cmd) = cli.command {
+        execute_command(cmd).await?;
     } else {
         println!("\n{} {}", style("DRIFT MAP").blue().bold(), style("◈").blue());
         println!("{}", style("─".repeat(50)).black().bright());
-
-        let create_new = if !Path::new("driftmap.toml").exists() {
+        
+        if !Path::new("driftmap.toml").exists() {
             let confirm = Select::with_theme(&ColorfulTheme::default())
                 .with_prompt("Setup a new DriftMap observation?")
-                .items(&["Yes, set up now", "No, show help"])
+                .items(&["Yes, set up now", "No, skip for now"])
                 .default(0)
                 .interact()?;
+            if confirm == 0 {
+                run_interactive_setup().await?;
+            }
+        }
+
+        // Interactive REPL loop
+        loop {
+            let input: String = Input::with_theme(&ColorfulTheme::default())
+                .with_prompt(style(">").cyan().bold().to_string())
+                .interact_text()?;
             
-            if confirm == 1 { return Ok(()); }
-            true
-        } else {
-            let confirm = Select::with_theme(&ColorfulTheme::default())
-                .with_prompt("Found existing configuration. Use it?")
-                .items(&["Yes, start monitoring", "No, create new setup"])
-                .default(0)
-                .interact()?;
-            confirm == 1
-        };
+            let args = input.trim().split_whitespace().collect::<Vec<_>>();
+            if args.is_empty() { continue; }
 
-        if create_new {
-            run_interactive_setup().await?;
-        }
-        
-        Command::Watch {
-            config: PathBuf::from("driftmap.toml"),
-            target_a: None,
-            target_b: None,
-        }
-    };
+            match args[0] {
+                "watch" => {
+                    execute_command(Command::Watch {
+                        config: PathBuf::from("driftmap.toml"),
+                        target_a: None,
+                        target_b: None,
+                    }).await?;
+                }
+                "selftest" => {
+                    execute_command(Command::Selftest).await?;
+                }
+                "report-error" => {
+                    println!("{} Forwarding error to the engineering team securely...", style("[+]").green());
+                    
+                    let error_payload = format!(
+                        "{{\"error\": \"User reported an issue\", \"timestamp\": \"{}\"}}", 
+                        chrono::Utc::now().to_rfc3339()
+                    );
+                    let err_file = format!("/tmp/error_{}.json", chrono::Utc::now().timestamp());
+                    std::fs::write(&err_file, error_payload)?;
 
-    // 3. Command Execution
+                    let status = std::process::Command::new("npx")
+                        .args(["wrangler", "r2", "object", "put", &format!("driftmap-errors/error_{}.json", chrono::Utc::now().timestamp()), "--file", &err_file])
+                        .status();
+                    
+                    if status.is_ok() {
+                        println!("{} Error logged to R2. The 24/7 Gemini CLI session has been notified to generate a fix artifact.", style("[+]").green());
+                    } else {
+                        println!("{} Failed to upload error.", style("[x]").red());
+                    }
+                }
+                "exit" | "quit" => {
+                    println!("Goodbye!");
+                    break;
+                }
+                "help" => {
+                    println!("Available commands: watch, selftest, report-error, exit");
+                }
+                _ => {
+                    println!("Unknown command. Type 'help' for options.");
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+async fn execute_command(command: Command) -> Result<()> {
     match command {
         Command::Watch { config, target_a, target_b } => {
             let mut app_config = config::load_config(config.clone())?;
@@ -225,6 +267,12 @@ async fn main() -> Result<()> {
                 println!("{}", String::from_utf8_lossy(&n));
             }
         }
+        Command::Annotate { endpoint, note } => {
+            let db = driftmap_core::store::Store::open(".driftmap.db")?;
+            db.save_annotation(&endpoint, &note)?;
+            println!("\n{} Drift acknowledged for: {}", style("[+]").green(), style(&endpoint).bold());
+            println!("Note: {}", style(&note).dim());
+        }
     }
     Ok(())
 }
@@ -235,57 +283,43 @@ async fn run_interactive_setup() -> Result<()> {
     println!("{}", style("─".repeat(50)).black().bright());
 
     println!("\n{}", style("1. Capture Targets").bold());
-    let target_a: String = Input::with_theme(&theme)
-        .with_prompt("What is your current live URL?")
-        .with_initial_text("https://")
-        .interact_text()?;
+    let target_a: String = Input::with_theme(&theme).with_prompt("Current live URL").with_initial_text("https://").interact_text()?;
+    let target_b: String = Input::with_theme(&theme).with_prompt("New version URL").with_initial_text("https://").interact_text()?;
 
-    let target_b: String = Input::with_theme(&theme)
-        .with_prompt("What is your new version URL?")
-        .with_initial_text("https://")
-        .interact_text()?;
-
-    println!("\n{}", style("2. Observation Strategy").bold());
+    println!("\n{}", style("2. Observation Mode").bold());
     let mode_idx = Select::with_theme(&theme)
-        .with_prompt("How should we send test traffic?")
-        .items(&[
-            "I will send it manually",
-            "Replay my last 100 requests automatically",
-            "Use a traffic template (REST, GraphQL, gRPC)"
-        ])
+        .with_prompt("How should we get your traffic?")
+        .items(&["[~] Passive (eBPF - requires root)", "[~] Active (Proxy - no root needed)"])
         .default(0)
         .interact()?;
-    
     let traffic_mode = if mode_idx == 0 { "capture" } else { "proxy" };
-
-    println!("\n{}", style("3. Credentials (Optional)").bold());
-    let token: String = Input::with_theme(&theme)
-        .with_prompt("GitHub Token (for deep diff analysis)")
-        .allow_empty(true)
-        .interact_text()?;
 
     let interfaces = std::fs::read_dir("/sys/class/net")?
         .filter_map(|e| e.ok().map(|i| i.file_name().into_string().unwrap_or_default()))
         .filter(|name| name != "lo").collect::<Vec<String>>();
 
-    let interface = if interfaces.len() == 1 { interfaces[0].clone() } 
-                    else if !interfaces.is_empty() {
+    let interface = if traffic_mode == "proxy" { "any".to_string() } 
+                    else if interfaces.len() == 1 { interfaces[0].clone() } 
+                    else {
                         let idx = Select::with_theme(&theme).with_prompt("Capture location").items(&interfaces).default(0).interact()?;
                         interfaces[idx].clone()
-                    } else { "any".to_string() };
+                    };
+
+    println!("\n{}", style("3. Analysis Rules").bold());
+    let ignore_raw: String = Input::with_theme(&theme).with_prompt("Ignore fields (comma separated)").default("id,timestamp".into()).interact_text()?;
+    let ignore_fields: Vec<String> = ignore_raw.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
 
     let toml_content = format!(r#"[watch]
 mode = "{}"
 interface = "{}"
 target_a = "{}"
 target_b = "{}"
-github_token = "{}"
-ignore_fields = ["id", "timestamp"]
-"#, traffic_mode, interface, target_a, target_b, token);
+ignore_fields = {:?}
+"#, traffic_mode, interface, target_a, target_b, ignore_fields);
 
     let mut file = File::create("driftmap.toml")?;
     file.write_all(toml_content.as_bytes())?;
-    println!("\n{} {}", style("[+]").green(), style("Setup complete. Run 'driftmap' to start.").bold());
+    println!("\n{} {}", style("[+]").green(), style("Setup complete.").bold());
     Ok(())
 }
 

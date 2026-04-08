@@ -19,3 +19,10 @@ CREATE TABLE IF NOT EXISTS sessions (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id)
 );
+
+CREATE TABLE IF NOT EXISTS drift_annotations (
+  endpoint TEXT PRIMARY KEY,
+  note TEXT NOT NULL,
+  author TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);

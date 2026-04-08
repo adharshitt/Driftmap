@@ -61,7 +61,14 @@ fn parse_request(raw: &[u8]) -> Option<HttpRequest> {
                 .unwrap_or(0);
 
             let body_end = (header_len + content_length).min(raw.len());
-            let body = raw[header_len..body_end].to_vec();
+            let mut body = raw[header_len..body_end].to_vec();
+
+            // Task 2: gRPC support
+            let is_grpc = hdrs.iter().any(|(k, v)| k == "content-type" && v.contains("grpc"));
+            if is_grpc && body.len() > 5 {
+                // Strip 5-byte gRPC framing (compressed flag + 4-byte length)
+                body = body[5..].to_vec();
+            }
 
             Some(HttpRequest {
                 method,

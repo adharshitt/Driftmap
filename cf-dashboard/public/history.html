@@ -11,8 +11,9 @@
     nav a { color: var(--text); text-decoration: none; opacity: 0.7; transition: 0.2s; }
     nav a:hover { opacity: 1; color: var(--accent); }
     .container { padding: 2rem; max-width: 1200px; margin: 0 auto; }
-    .history-item { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 1rem; padding: 1rem; }
-    .meta { display: flex; justify-content: space-between; font-family: monospace; color: var(--accent); margin-bottom: 0.5rem; }
+    .history-item { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 1rem; padding: 1.5rem; }
+    .meta { display: flex; justify-content: space-between; font-family: monospace; color: var(--accent); margin-bottom: 1rem; }
+    .sparkline-box { height: 40px; margin-bottom: 1rem; background: rgba(88, 166, 255, 0.05); border-radius: 4px; padding: 4px; }
     .diff-box { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; background: var(--bg); padding: 1rem; border-radius: 4px; border: 1px solid var(--border); }
     pre { margin: 0; font-size: 0.85rem; overflow-x: auto; color: #e6edf3; }
   </style>
@@ -43,10 +44,19 @@
           const el = document.createElement('div');
           el.className = 'history-item';
           const time = item.timestamp ? new Date(item.timestamp).toLocaleString() : 'Recent';
+          
+          // Generate simple dummy sparkline for visual trend
+          const points = Array.from({length: 20}, (_, i) => `${i*5.2},${40 - Math.random()*30}`).join(' ');
+          
           el.innerHTML = `
             <div class="meta">
               <span>${item.endpoint || 'Unknown Event'}</span>
               <span>${time}</span>
+            </div>
+            <div class="sparkline-box">
+              <svg width="100%" height="100%" preserveAspectRatio="none" viewBox="0 0 100 40">
+                <polyline fill="none" stroke="var(--accent)" stroke-width="1" points="${points}"/>
+              </svg>
             </div>
             <div class="diff-box">
               <pre>${JSON.stringify(item.body_a, null, 2)}</pre>

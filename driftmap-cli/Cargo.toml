@@ -28,3 +28,4 @@ indicatif = "0.18.4"
 ratatui = "0.30.0"
 crossterm = "0.29.0"
 serde_json.workspace = true
+chrono = "0.4.44"

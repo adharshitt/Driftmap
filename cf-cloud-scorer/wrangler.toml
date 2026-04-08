@@ -1,0 +1,28 @@
+name = "driftmap-cloud-scorer"
+main = "index.js"
+compatibility_date = "2024-04-05"
+
+[[durable_objects.bindings]]
+name = "ENDPOINT_SCORER"
+class_name = "EndpointScorer"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["EndpointScorer"]
+
+[[d1_databases]]
+binding = "driftmap_db"
+database_name = "driftmap-db"
+database_id = "c79a0086-dbcf-4a96-8363-95b487dcc04b"
+
+[[kv_namespaces]]
+binding = "DRIFT_DATA"
+id = "5f0762a7a91241619c62484652f2c56e"
+
+[[queues.consumers]]
+queue = "scoring-queue"
+
+[[durable_objects.bindings]]
+name = "BROADCASTER"
+class_name = "Broadcaster"
+script_name = "driftmap-sock"

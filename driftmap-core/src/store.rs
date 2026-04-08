@@ -19,6 +19,19 @@ pub struct DivergingPairRecord {
 }
 
 impl Store {
+    pub fn save_annotation(&self, endpoint: &str, note: &str) -> anyhow::Result<()> {
+        self.conn.execute(
+            "INSERT OR REPLACE INTO drift_annotations (endpoint, note) VALUES (?1, ?2)",
+            params![endpoint, note],
+        )?;
+        Ok(())
+    }
+
+    pub fn is_annotated(&self, endpoint: &str) -> anyhow::Result<bool> {
+        let mut stmt = self.conn.prepare("SELECT 1 FROM drift_annotations WHERE endpoint = ?1")?;
+        Ok(stmt.exists(params![endpoint])?)
+    }
+
     pub fn open(path: &str) -> anyhow::Result<Self> {
         let conn = Connection::open(path)?;
         conn.execute_batch(
